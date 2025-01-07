@@ -2,42 +2,177 @@
 using MelonLoader;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using System.Net.Sockets;
+using System.Text;
+using UnityEngine.Timeline;
+using UnityEngine.Playables;
+using Unity.Collections;
 
 [assembly: MelonInfo(typeof(MitaAI.Core), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
 
 namespace MitaAI
 {
+
     public class Core : MelonMod
     {
+        MitaPerson Mita = GameObject.Find("Mita")?.GetComponent<MitaPerson>();
+        PlayerPerson Target = GameObject.Find("Person")?.GetComponent<PlayerPerson>();
+        GameObject CustomDialog;
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
             if (sceneName == "Scene 4 - StartSecret")
             {
-                LoggerInstance.Msg($"Мы в нужном месте");
+                Mita = GameObject.Find("Mita")?.GetComponent<MitaPerson>();
+                Target = GameObject.Find("Person")?.GetComponent<PlayerPerson>();
+                LoggerInstance.Msg($"We in right place scene 4 ");
 
                 // Проверка и логирование для Миты
-                MitaPerson Mita = GameObject.Find("Mita")?.GetComponent<MitaPerson>();
+                
                 if (Mita != null)
                 {
-                    LoggerInstance.Msg("Мита найдена!");
+                    LoggerInstance.Msg("Mita found!");
                 }
                 else
                 {
-                    LoggerInstance.Msg("Мита не найдена.");
+                    LoggerInstance.Msg("Mita not found");
                 }
 
                 // Проверка и логирование для игрока (персонажа)
-                PlayerPerson Target = GameObject.Find("Person")?.GetComponent<PlayerPerson>();
+                
                 if (Target != null)
                 {
-                    LoggerInstance.Msg("Игрок найден!");
-                    Mita?.AiWalkToTarget(Target.GetComponent<Transform>());
+                    LoggerInstance.Msg("player found !");
+// Mita?.AiWalkToTarget(Target.GetComponent<Transform>());
                 }
                 else
                 {
-                    LoggerInstance.Msg("Игрок не найден.");
+                    LoggerInstance.Msg("player not found.");
                 }
+
+
+                LoggerInstance.Msg("Creating Answer object.");
+                Transform world = GameObject.Find("World")?.transform;
+
+                if (world == null)
+                {
+                    Debug.LogError("Объект 'World' не найден.");
+
+                }
+
+                // Спускаемся по дереву детей
+                Transform dialogOriginal = world.Find("Quests/Quest 1/Dialogues/Dialogue Mita/Dialogue Finish Aihastion/DMita 2");
+
+                if (dialogOriginal == null)
+                {
+                    Debug.LogError("Целевой объект 'DMita 2' не найден.");
+
+                }
+
+                // Создаем копию объекта
+                CustomDialog = GameObject.Instantiate(dialogOriginal.gameObject, world.Find("Quests/Quest 1/Dialogues"));
+                CustomDialog.name = "Custom Dialoge";
+            }
+        }
+
+        private float timer = 0f; // Время прошедшее с последнего запроса
+        private const float interval = 15; // Интервал в секундах (8 секунд)
+
+        public override void OnFixedUpdate()
+        {
+            
+            // Увеличиваем таймер на время прошедшее с последнего кадра
+            timer += Time.fixedDeltaTime;
+
+            // Проверяем, прошло ли 8 секунд
+            if (timer >= interval)
+            {
+                // Сбрасываем таймер и отправляем запрос
+                timer = 0f;
+                string response = GetResponseFromPythonSocket("Привет, Мита! Я пока говорю только это, извини, но я научусь!!!");
+
+                // Убедитесь, что строка декодируется с использованием UTF-8
+                //string decodedResponse = Encoding.UTF8.GetString(Encoding.Default.GetBytes(response));
+                try
+                {
+
+
+                    // Создаем копию объекта
+                    GameObject LocalDialog = GameObject.Instantiate(CustomDialog,CustomDialog.transform.parent);
+
+                    // Получаем компонент Dialogue_3DText
+                    Dialogue_3DText Answer = LocalDialog.GetComponent<Dialogue_3DText>();
+                    if (Answer == null)
+                    {
+                        Debug.LogWarning("Компонент Dialogue_3DText не найден в объекте 'DMita 1'.");
+                    }
+
+                    LoggerInstance.Msg("Initializing speaker property.");
+                    Answer.speaker = Mita.gameObject;
+
+                    // Uncomment this line if you want to use a specific facial emotion.
+                    //LoggerInstance.Msg("Setting facial emotion.");
+                    //Mita.FaceEmotion("smilestrange");
+
+                    LoggerInstance.Msg("Setting text for the response.");
+                    Answer.textPrint = $"{response}";
+                    Answer.textPrintNow = $"{response}";
+                    Answer.indexString = -1;
+
+                    LocalDialog.active = true;
+                    LoggerInstance.Msg("Setting dialogue theme.");
+                    Answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
+
+                    LoggerInstance.Msg("Setting starting emotion.");
+                    Answer.emotionStart = GetRandomEmotion();
+
+
+
+                }
+                catch (Exception ex)
+                {
+                    LoggerInstance.Msg($"Error: {ex.Message}");
+                    LoggerInstance.Msg($"StackTrace: {ex.StackTrace}");
+                }
+
+
+            }
+
+            base.OnFixedUpdate();
+        }
+        private EmotionType GetRandomEmotion()
+        {
+            // Получаем все значения из перечисления EmotionType
+            EmotionType[] emotions = (EmotionType[])Enum.GetValues(typeof(EmotionType));
+
+            // Генерируем случайный индекс
+            int randomIndex = UnityEngine.Random.Range(0, emotions.Length);
+
+            // Возвращаем случайное значение
+            return emotions[randomIndex];
+        }
+        private string GetResponseFromPythonSocket(string input)
+        {
+            string serverAddress = "127.0.0.1";
+            int port = 12345;
+
+            // Создаём и подключаем сокет
+            using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+            {
+                clientSocket.Connect(serverAddress, port);
+
+                // Отправляем сообщение на сервер
+                byte[] messageBytes = Encoding.UTF8.GetBytes(input);
+                clientSocket.Send(messageBytes);
+
+                // Получаем ответ от сервера
+                byte[] buffer = new byte[1024];
+                int bytesRead = clientSocket.Receive(buffer);
+
+                // Декодируем ответ
+                string response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+
+                return response;
             }
         }
     }
