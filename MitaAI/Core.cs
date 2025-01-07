@@ -76,20 +76,36 @@ namespace MitaAI
         }
 
         private float timer = 0f; // Время прошедшее с последнего запроса
-        private const float interval = 15; // Интервал в секундах (8 секунд)
+        private const float interval = 10; // Интервал в секундах (8 секунд)
 
-        public override void OnFixedUpdate()
+        async public override void OnFixedUpdate()
         {
-            
+            Scene currentScene = SceneManager.GetActiveScene();
+            if (currentScene.name != "Scene 4 - StartSecret") { return; }
+
             // Увеличиваем таймер на время прошедшее с последнего кадра
             timer += Time.fixedDeltaTime;
 
-            // Проверяем, прошло ли 8 секунд
-            if (timer >= interval)
+            
+
+                // Проверяем, прошло ли 8 секунд
+                if (timer >= interval)
             {
                 // Сбрасываем таймер и отправляем запрос
                 timer = 0f;
-                string response = GetResponseFromPythonSocket("Привет, Мита! Я пока говорю только это, извини, но я научусь!!!");
+                var response = "";
+                try
+                {
+                     response = await Task.Run(() => GetResponseFromPythonSocketAsync("Привет, Мита!"));
+                }
+                catch (Exception ex)
+                {
+                    LoggerInstance.Msg("Problem with getting anwer");
+                    LoggerInstance.Msg($"Error: {ex.Message}");
+                    LoggerInstance.Msg($"StackTrace: {ex.StackTrace}");
+                }
+                // Отправка асинхронного запроса в отдельном потоке
+                
 
                 // Убедитесь, что строка декодируется с использованием UTF-8
                 //string decodedResponse = Encoding.UTF8.GetString(Encoding.Default.GetBytes(response));
@@ -115,7 +131,7 @@ namespace MitaAI
                     //Mita.FaceEmotion("smilestrange");
 
                     LoggerInstance.Msg("Setting text for the response.");
-                    Answer.textPrint = $"{response}";
+                   // Answer.textPrint = $"{response}";
                     Answer.textPrintNow = $"{response}";
                     Answer.indexString = -1;
 
@@ -151,7 +167,7 @@ namespace MitaAI
             // Возвращаем случайное значение
             return emotions[randomIndex];
         }
-        private string GetResponseFromPythonSocket(string input)
+        public async Task<string> GetResponseFromPythonSocketAsync(string input)
         {
             string serverAddress = "127.0.0.1";
             int port = 12345;
@@ -159,15 +175,18 @@ namespace MitaAI
             // Создаём и подключаем сокет
             using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
             {
-                clientSocket.Connect(serverAddress, port);
+                await Task.Factory.FromAsync(
+                    clientSocket.BeginConnect(serverAddress, port, null, null),
+                    clientSocket.EndConnect
+                );
 
                 // Отправляем сообщение на сервер
                 byte[] messageBytes = Encoding.UTF8.GetBytes(input);
-                clientSocket.Send(messageBytes);
+                await clientSocket.SendAsync(messageBytes, SocketFlags.None);
 
                 // Получаем ответ от сервера
                 byte[] buffer = new byte[1024];
-                int bytesRead = clientSocket.Receive(buffer);
+                int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
 
                 // Декодируем ответ
                 string response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
@@ -175,5 +194,6 @@ namespace MitaAI
                 return response;
             }
         }
+
     }
 }
