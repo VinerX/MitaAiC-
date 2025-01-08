@@ -8,7 +8,6 @@ using UnityEngine.Timeline;
 using UnityEngine.Playables;
 using Unity.Collections;
 using UnityEngine.UI;
-using System.Text.RegularExpressions;
 
 [assembly: MelonInfo(typeof(MitaAI.Core), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
@@ -103,25 +102,50 @@ namespace MitaAI
                 }
                 catch (Exception ex)
                 {
-                    LoggerInstance.Msg("Problem with getting answer");
+                    LoggerInstance.Msg("Problem with getting anwer");
                     LoggerInstance.Msg($"Error: {ex.Message}");
                     LoggerInstance.Msg($"StackTrace: {ex.StackTrace}");
                 }
                 // Отправка асинхронного запроса в отдельном потоке
-                try
-                {
-                    EmotionType emotion = ExtractEmotions(ref response);
-                }
-                catch (Exception)
-                {
-                    LoggerInstance.Msg("Problem with amotions");
-                    throw;
-                }
 
 
+                // Убедитесь, что строка декодируется с использованием UTF-8
+                //string decodedResponse = Encoding.UTF8.GetString(Encoding.Default.GetBytes(response));
                 try
                 {
-                    CreateDialogue(response, "");
+
+                    LoggerInstance.Msg("Creating clone of dialogue.");
+                    // Создаем копию объекта
+                    GameObject LocalDialog = GameObject.Instantiate(CustomDialog, CustomDialog.transform.parent);
+
+                    // Получаем компонент Dialogue_3DText
+                    Dialogue_3DText Answer = LocalDialog.GetComponent<Dialogue_3DText>();
+                    if (Answer == null)
+                    {
+                        Debug.LogWarning("Компонент Dialogue_3DText не найден в объекте 'DMita 1'.");
+                    }
+
+                    LoggerInstance.Msg("Initializing speaker property.");
+                    Answer.speaker = Mita.gameObject;
+
+                    // Uncomment this line if you want to use a specific facial emotion.
+                    //LoggerInstance.Msg("Setting facial emotion.");
+                    //Mita.FaceEmotion("smilestrange");
+
+                    LoggerInstance.Msg("Setting text for the response.");
+                    Answer.textPrint = $"{response}";
+// Answer.textPrintNow = $"{response}";
+                    Answer.indexString = -1;
+
+                    LocalDialog.active = true;
+                    LoggerInstance.Msg("Setting dialogue theme.");
+                    Answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
+
+                    LoggerInstance.Msg("Setting starting emotion.");
+                    Answer.emotionStart = GetRandomEmotion();
+
+
+
                 }
                 catch (Exception ex)
                 {
@@ -135,101 +159,6 @@ namespace MitaAI
 
             base.OnFixedUpdate();
         }
-        private void CreateDialogue(string response, string emotion = "")
-        {
-            LoggerInstance.Msg("Dialog start");
-
-            if (CustomDialog == null || Mita == null) return;
-
-            GameObject LocalDialog = GameObject.Instantiate(CustomDialog, CustomDialog.transform.parent);
-
-            Dialogue_3DText Answer = LocalDialog.GetComponent<Dialogue_3DText>();
-            if (Answer == null)
-            {
-                LoggerInstance.Msg("Dialogue_3DText component not found.");
-                return;
-            }
-
-            Answer.speaker = Mita.gameObject;
-            Answer.textPrint = response;
-            Answer.indexString = -1;
-            Answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
-
-            if (string.IsNullOrEmpty(emotion))
-            {
-                LoggerInstance.Msg("Error: emotion string is null or empty.");
-            }
-            else
-            {
-                try
-                {
-                    Enum.TryParse<EmotionType>(emotion, true, out var result);
-                    Answer.emotionStart = result;
-                }
-                catch (Exception)
-                {
-                    Answer.emotionStart = GetRandomEmotion();
-                    LoggerInstance.Msg($"Error: invalid emotion '{emotion}'");
-                    throw;
-                }
-
-            }
-
-
-
-            LocalDialog.SetActive(true);
-
-            LoggerInstance.Msg("Dialog end");
-        }
-
-        public static List<string> ExtractCommands(ref string response)
-        {
-            List<string> commands = new List<string>();
-            // Регулярное выражение для поиска текста между <c></c>
-            string pattern = @"<c>(.*?)</c>";
-
-            // Используем регулярное выражение для поиска всех команд
-            MatchCollection matches = Regex.Matches(response, pattern);
-
-            foreach (Match match in matches)
-            {
-                if (match.Success)
-                {
-                    commands.Add(match.Groups[1].Value); // Добавляем команду без тега
-                }
-            }
-
-            // Удаляем все теги <c></c> из строки
-            response = Regex.Replace(response, pattern, "");
-
-            return commands;
-        }
-
-        // Функция для извлечения анимаций из <a></a> и удаления тегов
-        public static List<string> ExtractEmotions(ref string response)
-        {
-            List<string> emotions = new List<string>();
-            // Регулярное выражение для поиска текста между <a></a>
-            string pattern = @"<e>(.*?)</e>";
-
-            // Используем регулярное выражение для поиска всех анимаций
-            MatchCollection matches = Regex.Matches(response, pattern);
-
-            foreach (Match match in matches)
-            {
-                if (match.Success)
-                {
-                    emotions.Add(match.Groups[1].Value); // Добавляем анимацию без тега
-                }
-            }
-
-            // Удаляем все теги <a></a> из строки
-            response = Regex.Replace(response, pattern, "");
-
-            return emotions;
-        }
-
-
         private EmotionType GetRandomEmotion()
         {
             // Получаем все значения из перечисления EmotionType
