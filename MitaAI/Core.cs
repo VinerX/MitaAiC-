@@ -23,15 +23,17 @@ namespace MitaAI
         private const string ServerAddress = "127.0.0.1";
         private const int Port = 12345;
         private const int PassivePort = 12346;
-        private const float Interval = 15f;
+        private const float Interval = 0.5f;
         private float timer = 0f;
+        private const float MitaBoringInterval = 30f;
+        private float MitaBoringtimer = 0f;
 
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
             if (sceneName == "Scene 4 - StartSecret")
             {
                 InitializeGameObjects();
-                StartListeningForMessages();
+// StartListeningForMessages();
                 LoggerInstance.Msg("Scene loaded successfully.");
             }
         }
@@ -73,6 +75,7 @@ namespace MitaAI
             if (SceneManager.GetActiveScene().name != "Scene 4 - StartSecret") return;
 
             timer += Time.fixedDeltaTime;
+            MitaBoringtimer += Time.fixedDeltaTime;
 
             if (timer >= Interval)
             {
@@ -85,7 +88,15 @@ namespace MitaAI
 
         private async Task HandleDialogueAsync()
         {
-            string response = await GetResponseFromPythonSocketAsync("Привет, Мита! Можешь какую-нибудь случайную эмоцию сделать");
+            
+            string dataToSent = "waiting";
+            if (MitaBoringtimer >= MitaBoringInterval)
+            {
+                MitaBoringtimer = 0f;
+                dataToSent = "boring";
+            }
+
+            string response = await GetResponseFromPythonSocketAsync(dataToSent);
             if (response != "")
             {
                 await DisplayResponseAndEmotionAsync(response);
@@ -200,13 +211,14 @@ namespace MitaAI
             LoggerInstance.Msg("Begin ListenForMessagesFromServerAsync");
             using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
             {
-                bool connected = await TryConnectAsync(clientSocket, ServerAddress, PassivePort,1000,3000);
+                bool connected = await TryConnectAsync(clientSocket, ServerAddress, PassivePort, 1000, 3000);
                 if (!connected)
                 {
                     LoggerInstance.Msg("Failed to connect to the server. Exiting message listening.");
-                    return; // Если не удалось подключиться, выход из метода
+                    return;
                 }
 
+                clientSocket.ReceiveTimeout = 3000; // Установить тайм-аут на получение данных
                 byte[] buffer = new byte[1024];
                 LoggerInstance.Msg("Middle ListenForMessagesFromServerAsync");
                 try
@@ -214,17 +226,26 @@ namespace MitaAI
                     while (true)
                     {
                         LoggerInstance.Msg("Circle ListenForMessagesFromServerAsync");
-                        int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
-                        if (bytesRead == 0) continue;
-
-                        string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                        LoggerInstance.Msg("Circle 2 ListenForMessagesFromServerAsync");
-                        if (message != "")
+                        try
                         {
-                            LoggerInstance.Msg("Try to invoke");
-                            onMessageReceived?.Invoke(message);
+                            int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
+                            LoggerInstance.Msg($"bytesRead: {bytesRead}");
+                            if (bytesRead > 0)
+                            {
+                                LoggerInstance.Msg("If > 0  ListenForMessagesFromServerAsync");
+                                string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                                if (!string.IsNullOrEmpty(message))
+                                {
+                                    LoggerInstance.Msg("Message received, invoking callback.");
+                                    onMessageReceived?.Invoke(message);
+                                }
+                            }
                         }
-                        
+                        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.TimedOut)
+                        {
+                            LoggerInstance.Msg("No data received within timeout period, continuing...");
+                            // Тайм-аут сработал, продолжаем проверку
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -293,6 +314,7 @@ namespace MitaAI
             {
                 LoggerInstance.Msg($"Received message: {message}");
                 await DisplayResponseAndEmotionAsync(message);
+
 
                 // Отправка подтверждения серверу
                 // await SendAcknowledgementToServerAsync("Data is transmitted");
