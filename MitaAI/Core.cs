@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 using System;
 using UnityEngine.UI;
 using static Il2CppRootMotion.FinalIK.InteractionObject;
+using UnityEngine.Animations;
+using UnityEngine.UIElements;
 
 [assembly: MelonInfo(typeof(MitaAI.Core), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
@@ -27,7 +29,7 @@ namespace MitaAI
         private float timer = 0f;
         private const float MitaBoringInterval = 30f;
         private float MitaBoringtimer = 0f;
-
+        
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
             if (sceneName == "Scene 4 - StartSecret")
@@ -108,24 +110,73 @@ namespace MitaAI
         {
             try
             {
+                LoggerInstance.Msg("Start DisplayResponseAndEmotionAsync");
+
                 // Сначала изменим response в зависимости от эмоций
+                LoggerInstance.Msg("Calling SetEmotionBasedOnResponse");
                 string modifiedResponse = await SetEmotionBasedOnResponse(response);
+                LoggerInstance.Msg($"Modified response: {modifiedResponse}");
 
                 // Теперь создаем и отображаем диалог с уже измененным ответом
-                GameObject localDialog = InstantiateDialog();
-                Dialogue_3DText answer = localDialog.GetComponent<Dialogue_3DText>();
+                    GameObject localDialog = InstantiateDialog();
+                    Dialogue_3DText answer = localDialog.GetComponent<Dialogue_3DText>();
                 if (answer == null) throw new Exception("Dialogue_3DText component not found.");
 
-                answer.speaker = Mita.gameObject;
-                answer.textPrint = modifiedResponse;  // Используем измененный response
-                answer.indexString = -1;
-                answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
+                    LoggerInstance.Msg("Dialogue_3DText component found");
+
+                    answer.speaker = Mita.gameObject;
+                    answer.textPrint = part;  // Используем часть текста
+                    answer.indexString = -1;
+                    answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
                 localDialog.SetActive(true);
-            }
+                }
             catch (Exception ex)
             {
                 LoggerInstance.Msg($"Error displaying response: {ex.Message}");
             }
+        }
+
+
+        private List<string> SplitText(string text, int maxLength)
+        {
+            List<string> parts = new List<string>();
+
+            // Разделяем по строкам
+            string[] lines = text.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (string line in lines)
+            {
+                // Если длина строки меньше maxLength, добавляем её сразу
+                if (line.Length <= maxLength)
+                {
+                    parts.Add(line.Trim());
+                }
+                else
+                {
+                    // Разделяем на предложения
+                    string[] sentences = line.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
+                    string currentPart = "";
+
+                    foreach (string sentence in sentences)
+                    {
+                        string trimmedSentence = sentence.Trim();
+                        if ((currentPart.Length + trimmedSentence.Length + 1) <= maxLength)
+                        {
+                            currentPart += (currentPart.Length > 0 ? " " : "") + trimmedSentence + ".";
+                        }
+                        else
+                        {
+                            if (!string.IsNullOrWhiteSpace(currentPart)) parts.Add(currentPart.Trim());
+                            currentPart = trimmedSentence + ".";
+                        }
+                    }
+
+                    // Добавляем оставшийся текст
+                    if (!string.IsNullOrWhiteSpace(currentPart)) parts.Add(currentPart.Trim());
+                }
+            }
+
+            return parts;
         }
 
 
@@ -171,7 +222,6 @@ namespace MitaAI
         }
 
 
-
         public static async Task<(List<string> emotions, string cleanedResponse)> ExtractEmotionsAsync(string response)
         {
             return await Task.Run(() =>
@@ -191,13 +241,65 @@ namespace MitaAI
                 // Удаляем теги эмоций из текста
                 string cleanedResponse = Regex.Replace(response, @"<e>.*?</e>", "");
 
-                // Также удаляем все служебные сообщения
-                cleanedResponse = Regex.Replace(cleanedResponse, @"<service>.*?</service>", "");
-
                 return (emotions, cleanedResponse);
             });
         }
 
+        public static async Task<(List<string> commands, string cleanedResponse)> ExtractCommandsAsync(string response)
+        {
+            return await Task.Run(() =>
+            {
+                List<string> commands = new List<string>();
+                string pattern = @"<c>(.*?)</c>";
+                MatchCollection matches = Regex.Matches(response, pattern);
+
+                foreach (Match match in matches)
+                {
+                    if (match.Success)
+                    {
+                        commands.Add(match.Groups[1].Value);
+                    }
+                }
+
+                // Удаляем теги эмоций из текста
+                string cleanedResponse = Regex.Replace(response, @"<c>.*?</c>", "");
+
+                return (commands, cleanedResponse);
+            });
+        }
+
+        private async Task ProcessCommandsAsync(List<string> commands)
+        {
+            foreach (string command in commands)
+            {
+                switch (command.ToLower()) // Приводим команду к нижнему регистру для унификации
+                {
+                    case "<c>Достать бензопилу</c>":
+                        //await ShowEmotionAsync();
+                        break;
+
+                    case "<c>Выключить игрока</c>":
+                        //await PlaySoundAsync();
+                        break;
+
+                    case "<c>Подойти к игроку</c>":
+                        //await ChangeColorAsync();
+                        Mita.AiWalkToTarget(Player.transform);
+                        break;
+
+                    case "<c>Телепортироваться к игроку</c>":
+                        Mita.MitaTeleport(Player.transform);
+                        break;
+
+                    default:
+                        //AnimationClip animationClip = new AnimationClip();
+                       // animationClip.SampleAnimation(Playable_Animation.)
+                        //Mita.SetAnimatedProperties(animationClip);
+                        LoggerInstance.Msg($"Unknown command: {command}");
+                        break;
+                }
+            }
+        }
 
         private EmotionType GetRandomEmotion()
         {
@@ -339,7 +441,7 @@ namespace MitaAI
 
                 LoggerInstance.Msg("Acknowledgement sent to the server.");
             }
-        }
+    }
 
 
     }
