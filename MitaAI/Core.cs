@@ -4,202 +4,302 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.Net.Sockets;
 using System.Text;
-using UnityEngine.Timeline;
-using UnityEngine.Playables;
-using Unity.Collections;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using System;
 using UnityEngine.UI;
+using static Il2CppRootMotion.FinalIK.InteractionObject;
 
 [assembly: MelonInfo(typeof(MitaAI.Core), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
 
 namespace MitaAI
 {
-
     public class Core : MelonMod
     {
-        MitaPerson Mita = GameObject.Find("Mita")?.GetComponent<MitaPerson>();
-        PlayerPerson Target = GameObject.Find("Person")?.GetComponent<PlayerPerson>();
-        GameObject CustomDialog;
+        private MitaPerson Mita;
+        private PlayerPerson Player;
+        private GameObject CustomDialog;
+        private const string ServerAddress = "127.0.0.1";
+        private const int Port = 12345;
+        private const int PassivePort = 12346;
+        private const float Interval = 15f;
+        private float timer = 0f;
+
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
             if (sceneName == "Scene 4 - StartSecret")
             {
-                Mita = GameObject.Find("Mita")?.GetComponent<MitaPerson>();
-                Target = GameObject.Find("Person")?.GetComponent<PlayerPerson>();
-                LoggerInstance.Msg($"We in right place scene 4 ");
-
-                // Проверка и логирование для Миты
-
-                if (Mita != null)
-                {
-                    LoggerInstance.Msg("Mita found!");
-                }
-                else
-                {
-                    LoggerInstance.Msg("Mita not found");
-                }
-
-                // Проверка и логирование для игрока (персонажа)
-
-                if (Target != null)
-                {
-                    LoggerInstance.Msg("player found !");
-                    // Mita?.AiWalkToTarget(Target.GetComponent<Transform>());
-                }
-                else
-                {
-                    LoggerInstance.Msg("player not found.");
-                }
-
-
-                LoggerInstance.Msg("Creating Answer object.");
-                Transform world = GameObject.Find("World")?.transform;
-
-                if (world == null)
-                {
-                    Debug.LogError("Объект 'World' не найден.");
-
-                }
-
-                // Спускаемся по дереву детей
-                Transform dialogOriginal = world.Find("Quests/Quest 1/Dialogues/Dialogue Mita/Dialogue Finish Aihastion/DMita 2");
-
-                if (dialogOriginal == null)
-                {
-                    Debug.LogError("Целевой объект 'DMita 2' не найден.");
-
-                }
-
-                // Создаем копию объекта
-                CustomDialog = GameObject.Instantiate(dialogOriginal.gameObject, world.Find("Quests/Quest 1/Dialogues"));
-                CustomDialog.name = "Custom Dialoge";
+                InitializeGameObjects();
+                StartListeningForMessages();
+                LoggerInstance.Msg("Scene loaded successfully.");
             }
         }
-
-        private float timer = 0f; // Время прошедшее с последнего запроса
-        private const float interval = 20; // Интервал в секундах (8 секунд)
-
-        async public override void OnFixedUpdate()
+        private async void StartListeningForMessages()
         {
-            Scene currentScene = SceneManager.GetActiveScene();
-            if (currentScene.name != "Scene 4 - StartSecret") { return; }
+            // Вызываем асинхронный метод для слушания сообщений от сервера
+            await ListenForMessagesFromServerAsync(ProcessMessage);
+        }
+        private void InitializeGameObjects()
+        {
+            Mita = GameObject.Find("Mita")?.GetComponent<MitaPerson>();
+            Player = GameObject.Find("Person")?.GetComponent<PlayerPerson>();
+            LoggerInstance.Msg(Mita != null ? "Mita found!" : "Mita not found.");
+            LoggerInstance.Msg(Player != null ? "Player found!" : "Player not found.");
 
-            // Увеличиваем таймер на время прошедшее с последнего кадра
+            if (Mita == null || Player == null) return;
+
+            Transform world = GameObject.Find("World")?.transform;
+            if (world == null)
+            {
+                Debug.LogError("World object not found.");
+                return;
+            }
+
+            Transform dialogOriginal = world.Find("Quests/Quest 1/Dialogues/Dialogue Mita/Dialogue Finish Aihastion/DMita 2");
+            if (dialogOriginal == null)
+            {
+                Debug.LogError("Target object 'DMita 2' not found.");
+                return;
+            }
+
+            CustomDialog = GameObject.Instantiate(dialogOriginal.gameObject, world.Find("Quests/Quest 1/Dialogues"));
+            CustomDialog.name = "Custom Dialoge";
+        }
+
+        public override async void OnFixedUpdate()
+        {
+            if (SceneManager.GetActiveScene().name != "Scene 4 - StartSecret") return;
+
             timer += Time.fixedDeltaTime;
 
-
-
-            // Проверяем, прошло ли 8 секунд
-            if (timer >= interval)
+            if (timer >= Interval)
             {
-                // Сбрасываем таймер и отправляем запрос
                 timer = 0f;
-                var response = "";
-                try
-                {
-                    LoggerInstance.Msg("Trying get resuly from pythin");
-                    response = await Task.Run(() => GetResponseFromPythonSocketAsync("Привет, Мита!"));
-                }
-                catch (Exception ex)
-                {
-                    LoggerInstance.Msg("Problem with getting anwer");
-                    LoggerInstance.Msg($"Error: {ex.Message}");
-                    LoggerInstance.Msg($"StackTrace: {ex.StackTrace}");
-                }
-                // Отправка асинхронного запроса в отдельном потоке
-
-
-                // Убедитесь, что строка декодируется с использованием UTF-8
-                //string decodedResponse = Encoding.UTF8.GetString(Encoding.Default.GetBytes(response));
-                try
-                {
-
-                    LoggerInstance.Msg("Creating clone of dialogue.");
-                    // Создаем копию объекта
-                    GameObject LocalDialog = GameObject.Instantiate(CustomDialog, CustomDialog.transform.parent);
-
-                    // Получаем компонент Dialogue_3DText
-                    Dialogue_3DText Answer = LocalDialog.GetComponent<Dialogue_3DText>();
-                    if (Answer == null)
-                    {
-                        Debug.LogWarning("Компонент Dialogue_3DText не найден в объекте 'DMita 1'.");
-                    }
-
-                    LoggerInstance.Msg("Initializing speaker property.");
-                    Answer.speaker = Mita.gameObject;
-
-                    // Uncomment this line if you want to use a specific facial emotion.
-                    //LoggerInstance.Msg("Setting facial emotion.");
-                    //Mita.FaceEmotion("smilestrange");
-
-                    LoggerInstance.Msg("Setting text for the response.");
-                    Answer.textPrint = $"{response}";
-// Answer.textPrintNow = $"{response}";
-                    Answer.indexString = -1;
-
-                    LocalDialog.active = true;
-                    LoggerInstance.Msg("Setting dialogue theme.");
-                    Answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
-
-                    LoggerInstance.Msg("Setting starting emotion.");
-                    Answer.emotionStart = GetRandomEmotion();
-
-
-
-                }
-                catch (Exception ex)
-                {
-                    LoggerInstance.Msg("Problem with using dialoge.");
-                    LoggerInstance.Msg($"Error: {ex.Message}");
-                    LoggerInstance.Msg($"StackTrace: {ex.StackTrace}");
-                }
-
-
+                await HandleDialogueAsync();
             }
 
             base.OnFixedUpdate();
         }
-        private EmotionType GetRandomEmotion()
+
+        private async Task HandleDialogueAsync()
         {
-            // Получаем все значения из перечисления EmotionType
-            EmotionType[] emotions = (EmotionType[])Enum.GetValues(typeof(EmotionType));
-
-            // Генерируем случайный индекс
-            int randomIndex = UnityEngine.Random.Range(0, emotions.Length);
-
-            // Возвращаем случайное значение
-            return emotions[randomIndex];
-        }
-        public async Task<string> GetResponseFromPythonSocketAsync(string input)
-        {
-            string serverAddress = "127.0.0.1";
-            int port = 12345;
-
-            // Создаём и подключаем сокет
-            using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+            string response = await GetResponseFromPythonSocketAsync("Привет, Мита! Можешь какую-нибудь случайную эмоцию сделать");
+            if (response != "")
             {
-                await Task.Factory.FromAsync(
-                    clientSocket.BeginConnect(serverAddress, port, null, null),
-                    clientSocket.EndConnect
-                );
+                await DisplayResponseAndEmotionAsync(response);
+            }
+            
+        }
 
-                // Отправляем сообщение на сервер
-                byte[] messageBytes = Encoding.UTF8.GetBytes(input);
-                await clientSocket.SendAsync(messageBytes, SocketFlags.None);
+        private async Task DisplayResponseAndEmotionAsync(string response)
+        {
+            try
+            {
+                GameObject localDialog = InstantiateDialog();
+                Dialogue_3DText answer = localDialog.GetComponent<Dialogue_3DText>();
+                if (answer == null) throw new Exception("Dialogue_3DText component not found.");
 
-                // Получаем ответ от сервера
-                byte[] buffer = new byte[1024];
-                int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
+                answer.speaker = Mita.gameObject;
+                answer.textPrint = response;
+                answer.indexString = -1;
+                answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
+                localDialog.SetActive(true);
 
-                // Декодируем ответ
-                string response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-
-                timer = 0f;
-                return response;
+                await SetEmotionBasedOnResponse(response);
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Msg($"Error displaying response: {ex.Message}");
             }
         }
 
+        private GameObject InstantiateDialog()
+        {
+            Transform world = GameObject.Find("World")?.transform;
+            if (world == null)
+            {
+                Debug.LogError("World object not found.");
+                return null;
+            }
+
+            return GameObject.Instantiate(CustomDialog, world.Find("Quests/Quest 1/Dialogues"));
+        }
+
+        private async Task SetEmotionBasedOnResponse(string response)
+        {
+            try
+            {
+                var emotions = await ExtractEmotionsAsync(response);
+                if (emotions.Count > 0)
+                {
+                    Enum.TryParse<EmotionType>(emotions[0], true, out var result);
+                    Mita.FaceEmotionType(result);
+                    LoggerInstance.Msg("Emotion extracted successfully.");
+                }
+                else
+                {
+                    LoggerInstance.Msg("No emotions found. Using random emotion.");
+                    Mita.FaceEmotionType(GetRandomEmotion());
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Msg($"Error extracting emotion: {ex.Message}");
+                Mita.FaceEmotionType(GetRandomEmotion());
+            }
+        }
+
+        public static async Task<List<string>> ExtractEmotionsAsync(string response)
+        {
+            return await Task.Run(() =>
+            {
+                
+
+                List<string> emotions = new List<string>();
+                string pattern = @"<e>(.*?)</e>";
+                MatchCollection matches = Regex.Matches(response, pattern);
+
+                foreach (Match match in matches)
+                {
+                    if (match.Success)
+                    {
+                        emotions.Add(match.Groups[1].Value);
+                    }
+                }
+
+                // Удаляем все служебные сообщения, например, теги <service>...</service>
+                response = Regex.Replace(response, @"<e>.*?</e>", "");
+                return emotions;
+            });
+        }
+
+        private EmotionType GetRandomEmotion()
+        {
+            EmotionType[] emotions = (EmotionType[])Enum.GetValues(typeof(EmotionType));
+            int randomIndex = UnityEngine.Random.Range(0, emotions.Length);
+            return emotions[randomIndex];
+        }
+
+        public async Task ListenForMessagesFromServerAsync(Action<string> onMessageReceived)
+        {
+            LoggerInstance.Msg("Begin ListenForMessagesFromServerAsync");
+            using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+            {
+                bool connected = await TryConnectAsync(clientSocket, ServerAddress, PassivePort);
+                if (!connected)
+                {
+                    LoggerInstance.Msg("Failed to connect to the server. Exiting message listening.");
+                    return; // Если не удалось подключиться, выход из метода
+                }
+
+                byte[] buffer = new byte[1024];
+
+                try
+                {
+                    while (true)
+                    {
+                        int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
+                        if (bytesRead == 0) break;
+
+                        string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                        if (message != "")
+                        {
+                            onMessageReceived?.Invoke(message);
+                        }
+                        
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LoggerInstance.Msg($"Error while receiving messages: {ex.Message}");
+                }
+            }
+        }
+
+        public async Task<string> GetResponseFromPythonSocketAsync(string input)
+        {
+            using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+            {
+                bool connected = await TryConnectAsync(clientSocket, ServerAddress, Port);
+                if (!connected)
+                {
+                    LoggerInstance.Msg("Failed to connect to the server. Returning empty response.");
+                    return string.Empty; // Возвращаем пустой ответ, если не удалось подключиться
+                }
+
+                byte[] messageBytes = Encoding.UTF8.GetBytes(input);
+                await clientSocket.SendAsync(messageBytes, SocketFlags.None);
+
+                byte[] buffer = new byte[1024];
+                int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
+                return Encoding.UTF8.GetString(buffer, 0, bytesRead);
+            }
+        }
+
+        private async Task<bool> TryConnectAsync(Socket socket, string address, int port, int maxRetries = 3, int delayBetweenRetries = 2000)
+        {
+            int attempt = 0;
+            while (attempt < maxRetries)
+            {
+                try
+                {
+                    await Task.Factory.FromAsync(socket.BeginConnect(address, port, null, null), socket.EndConnect);
+                    LoggerInstance.Msg("Successfully connected to the server.");
+                    return true; // Если подключение прошло успешно
+                }
+                catch (SocketException ex)
+                {
+                    attempt++;
+                    LoggerInstance.Msg($"Connection failed (attempt {attempt}/{maxRetries}): {ex.Message}");
+                    if (attempt >= maxRetries)
+                    {
+                        LoggerInstance.Msg("Max retries reached. Unable to connect.");
+                        return false; // Если все попытки не увенчались успехом
+                    }
+                    await Task.Delay(delayBetweenRetries); // Задержка перед повторной попыткой
+                }
+                catch (Exception ex)
+                {
+                    LoggerInstance.Msg($"Unexpected error: {ex.Message}");
+                    return false; // Если произошла неожиданная ошибка, выходим
+                }
+            }
+            return false; // В случае завершения цикла
+        }
+
+        async void ProcessMessage(string message)
+        {
+            if (message != "")
+            {
+                LoggerInstance.Msg($"Received message: {message}");
+                await DisplayResponseAndEmotionAsync(message);
+
+                // Отправка подтверждения серверу
+                await SendAcknowledgementToServerAsync("Data is transmitted");
+
+                // Additional message processing logic
+            }
+        }
+
+        private async Task SendAcknowledgementToServerAsync(string ackMessage)
+        {
+            using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+            {
+                bool connected = await TryConnectAsync(clientSocket, ServerAddress, Port);
+                if (!connected)
+                {
+                    LoggerInstance.Msg("Failed to connect to the server. Acknowledgement not sent.");
+                    return; // Если не удалось подключиться, выходим из метода
+                }
+
+                byte[] messageBytes = Encoding.UTF8.GetBytes(ackMessage);
+                await clientSocket.SendAsync(messageBytes, SocketFlags.None);
+
+                LoggerInstance.Msg("Acknowledgement sent to the server.");
+            }
+        }
+
+
     }
-
-
 }
