@@ -37,6 +37,7 @@ namespace MitaAI
         }
         private async void StartListeningForMessages()
         {
+            LoggerInstance.Msg("StartListeningForMessages");
             // Вызываем асинхронный метод для слушания сообщений от сервера
             await ListenForMessagesFromServerAsync(ProcessMessage);
         }
@@ -199,7 +200,7 @@ namespace MitaAI
             LoggerInstance.Msg("Begin ListenForMessagesFromServerAsync");
             using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
             {
-                bool connected = await TryConnectAsync(clientSocket, ServerAddress, PassivePort);
+                bool connected = await TryConnectAsync(clientSocket, ServerAddress, PassivePort,1000,3000);
                 if (!connected)
                 {
                     LoggerInstance.Msg("Failed to connect to the server. Exiting message listening.");
@@ -207,17 +208,20 @@ namespace MitaAI
                 }
 
                 byte[] buffer = new byte[1024];
-
+                LoggerInstance.Msg("Middle ListenForMessagesFromServerAsync");
                 try
                 {
                     while (true)
                     {
+                        LoggerInstance.Msg("Circle ListenForMessagesFromServerAsync");
                         int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
-                        if (bytesRead == 0) break;
+                        if (bytesRead == 0) continue;
 
                         string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                        LoggerInstance.Msg("Circle 2 ListenForMessagesFromServerAsync");
                         if (message != "")
                         {
+                            LoggerInstance.Msg("Try to invoke");
                             onMessageReceived?.Invoke(message);
                         }
                         
@@ -252,19 +256,20 @@ namespace MitaAI
 
         private async Task<bool> TryConnectAsync(Socket socket, string address, int port, int maxRetries = 3, int delayBetweenRetries = 2000)
         {
+            LoggerInstance.Msg($"{port} Attemp");
             int attempt = 0;
             while (attempt < maxRetries)
             {
                 try
                 {
                     await Task.Factory.FromAsync(socket.BeginConnect(address, port, null, null), socket.EndConnect);
-                    LoggerInstance.Msg("Successfully connected to the server.");
+                    LoggerInstance.Msg($"Successfully connected to the server. {port}");
                     return true; // Если подключение прошло успешно
                 }
                 catch (SocketException ex)
                 {
                     attempt++;
-                    LoggerInstance.Msg($"Connection failed (attempt {attempt}/{maxRetries}): {ex.Message}");
+                    LoggerInstance.Msg($"Connection failed port {port} (attempt {attempt}/{maxRetries}): {ex.Message}");
                     if (attempt >= maxRetries)
                     {
                         LoggerInstance.Msg("Max retries reached. Unable to connect.");
@@ -274,7 +279,8 @@ namespace MitaAI
                 }
                 catch (Exception ex)
                 {
-                    LoggerInstance.Msg($"Unexpected error: {ex.Message}");
+                    LoggerInstance.Msg($"Unexpected error {port}: {ex.Message}");
+                    LoggerInstance.Msg($"Unexpected error {port}: {ex.ToString()}");
                     return false; // Если произошла неожиданная ошибка, выходим
                 }
             }
@@ -289,7 +295,7 @@ namespace MitaAI
                 await DisplayResponseAndEmotionAsync(message);
 
                 // Отправка подтверждения серверу
-                await SendAcknowledgementToServerAsync("Data is transmitted");
+                // await SendAcknowledgementToServerAsync("Data is transmitted");
 
                 // Additional message processing logic
             }
