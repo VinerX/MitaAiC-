@@ -96,23 +96,26 @@ namespace MitaAI
         {
             try
             {
+                // Сначала изменим response в зависимости от эмоций
+                string modifiedResponse = await SetEmotionBasedOnResponse(response);
+
+                // Теперь создаем и отображаем диалог с уже измененным ответом
                 GameObject localDialog = InstantiateDialog();
                 Dialogue_3DText answer = localDialog.GetComponent<Dialogue_3DText>();
                 if (answer == null) throw new Exception("Dialogue_3DText component not found.");
 
                 answer.speaker = Mita.gameObject;
-                answer.textPrint = response;
+                answer.textPrint = modifiedResponse;  // Используем измененный response
                 answer.indexString = -1;
                 answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
                 localDialog.SetActive(true);
-
-                await SetEmotionBasedOnResponse(response);
             }
             catch (Exception ex)
             {
                 LoggerInstance.Msg($"Error displaying response: {ex.Message}");
             }
         }
+
 
         private GameObject InstantiateDialog()
         {
@@ -126,11 +129,12 @@ namespace MitaAI
             return GameObject.Instantiate(CustomDialog, world.Find("Quests/Quest 1/Dialogues"));
         }
 
-        private async Task SetEmotionBasedOnResponse(string response)
+        private async Task<string> SetEmotionBasedOnResponse(string response)
         {
             try
             {
-                var emotions = await ExtractEmotionsAsync(response);
+                var (emotions, cleanedResponse) = await ExtractEmotionsAsync(response);
+
                 if (emotions.Count > 0)
                 {
                     Enum.TryParse<EmotionType>(emotions[0], true, out var result);
@@ -142,20 +146,24 @@ namespace MitaAI
                     LoggerInstance.Msg("No emotions found. Using random emotion.");
                     Mita.FaceEmotionType(GetRandomEmotion());
                 }
+
+                // Возвращаем очищенный текст (без эмоций и служебных сообщений)
+                return cleanedResponse;
             }
             catch (Exception ex)
             {
                 LoggerInstance.Msg($"Error extracting emotion: {ex.Message}");
                 Mita.FaceEmotionType(GetRandomEmotion());
+                return response; // Если произошла ошибка, возвращаем исходный текст
             }
         }
 
-        public static async Task<List<string>> ExtractEmotionsAsync(string response)
+
+
+        public static async Task<(List<string> emotions, string cleanedResponse)> ExtractEmotionsAsync(string response)
         {
             return await Task.Run(() =>
             {
-                
-
                 List<string> emotions = new List<string>();
                 string pattern = @"<e>(.*?)</e>";
                 MatchCollection matches = Regex.Matches(response, pattern);
@@ -168,11 +176,16 @@ namespace MitaAI
                     }
                 }
 
-                // Удаляем все служебные сообщения, например, теги <service>...</service>
-                response = Regex.Replace(response, @"<e>.*?</e>", "");
-                return emotions;
+                // Удаляем теги эмоций из текста
+                string cleanedResponse = Regex.Replace(response, @"<e>.*?</e>", "");
+
+                // Также удаляем все служебные сообщения
+                cleanedResponse = Regex.Replace(cleanedResponse, @"<service>.*?</service>", "");
+
+                return (emotions, cleanedResponse);
             });
         }
+
 
         private EmotionType GetRandomEmotion()
         {
