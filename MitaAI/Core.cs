@@ -277,14 +277,14 @@ namespace MitaAI
 
         private async Task<bool> TryConnectAsync(Socket socket, string address, int port, int maxRetries = 3, int delayBetweenRetries = 2000)
         {
-            LoggerInstance.Msg($"{port} Attemp");
+// LoggerInstance.Msg($"{port} Attemp");
             int attempt = 0;
             while (attempt < maxRetries)
             {
                 try
                 {
                     await Task.Factory.FromAsync(socket.BeginConnect(address, port, null, null), socket.EndConnect);
-                    LoggerInstance.Msg($"Successfully connected to the server. {port}");
+                   // LoggerInstance.Msg($"Successfully connected to the server. {port}");
                     return true; // Если подключение прошло успешно
                 }
                 catch (SocketException ex)
