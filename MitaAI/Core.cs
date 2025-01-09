@@ -22,15 +22,17 @@ namespace MitaAI
         private MitaPerson Mita;
         private PlayerPerson Player;
         private GameObject CustomDialog;
+
         private const string ServerAddress = "127.0.0.1";
         private const int Port = 12345;
         private const int PassivePort = 12346;
-        private const float Interval = 0.5f;
+
+        private const float Interval = 0.66f;
         private float timer = 0f;
+
         private const float MitaBoringInterval = 30f;
         private float MitaBoringtimer = 0f;
-        // Создаём объект и добавляем компонент
-        //GameObject dispatcherObject = new GameObject("MainThreadDispatcher");
+
         
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
@@ -42,18 +44,9 @@ namespace MitaAI
             else if (sceneName == "Scene 4 - StartSecret")
             {
                 InitializeGameObjects();
-// StartListeningForMessages();
-                LoggerInstance.Msg("Scene loaded successfully.");
-                //dispatcherObject.AddComponent<MainThreadDispatcher>();
-                LoggerInstance.Msg("Scene loaded successfully.");
             }
         }
-        private async void StartListeningForMessages()
-        {
-            LoggerInstance.Msg("StartListeningForMessages");
-            // Вызываем асинхронный метод для слушания сообщений от сервера
-            await ListenForMessagesFromServerAsync(ProcessMessage);
-        }
+
         private void InitializeGameObjects()
         {
             Mita = GameObject.Find("Mita")?.GetComponent<MitaPerson>();
@@ -247,15 +240,9 @@ namespace MitaAI
                 {
                     Enum.TryParse<EmotionType>(emotions[0], true, out var result);
                     Mita.FaceEmotionType(result);
-                    LoggerInstance.Msg("Emotion extracted successfully.");
-                }
-                else
-                {
-                    LoggerInstance.Msg("No emotions found. Using random emotion.");
-                    Mita.FaceEmotionType(GetRandomEmotion());
+                    
                 }
 
-                // Возвращаем очищенный текст (без эмоций и служебных сообщений)
                 return cleanedResponse;
             }
             catch (Exception ex)
@@ -353,55 +340,6 @@ namespace MitaAI
             return emotions[randomIndex];
         }
 
-        public async Task ListenForMessagesFromServerAsync(Action<string> onMessageReceived)
-        {
-            LoggerInstance.Msg("Begin ListenForMessagesFromServerAsync");
-            using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
-            {
-                bool connected = await TryConnectAsync(clientSocket, ServerAddress, PassivePort, 1000, 3000);
-                if (!connected)
-                {
-                    LoggerInstance.Msg("Failed to connect to the server. Exiting message listening.");
-                    return;
-                }
-
-                clientSocket.ReceiveTimeout = 3000; // Установить тайм-аут на получение данных
-                byte[] buffer = new byte[1024];
-                LoggerInstance.Msg("Middle ListenForMessagesFromServerAsync");
-                try
-                {
-                    while (true)
-                    {
-                        LoggerInstance.Msg("Circle ListenForMessagesFromServerAsync");
-                        try
-                        {
-                            int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
-                            LoggerInstance.Msg($"bytesRead: {bytesRead}");
-                            if (bytesRead > 0)
-                            {
-                                LoggerInstance.Msg("If > 0  ListenForMessagesFromServerAsync");
-                                string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                                if (!string.IsNullOrEmpty(message))
-                                {
-                                    LoggerInstance.Msg("Message received, invoking callback.");
-                                    onMessageReceived?.Invoke(message);
-                                }
-                            }
-                        }
-                        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.TimedOut)
-                        {
-                            LoggerInstance.Msg("No data received within timeout period, continuing...");
-                            // Тайм-аут сработал, продолжаем проверку
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    LoggerInstance.Msg($"Error while receiving messages: {ex.Message}");
-                }
-            }
-        }
-
         public async Task<string> GetResponseFromPythonSocketAsync(string input)
         {
             using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
@@ -470,51 +408,7 @@ namespace MitaAI
             }
         }
 
-        private async Task SendAcknowledgementToServerAsync(string ackMessage)
-        {
-            using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
-            {
-                bool connected = await TryConnectAsync(clientSocket, ServerAddress, Port);
-                if (!connected)
-                {
-                    LoggerInstance.Msg("Failed to connect to the server. Acknowledgement not sent.");
-                    return; // Если не удалось подключиться, выходим из метода
-                }
 
-                byte[] messageBytes = Encoding.UTF8.GetBytes(ackMessage);
-                await clientSocket.SendAsync(messageBytes, SocketFlags.None);
-
-                LoggerInstance.Msg("Acknowledgement sent to the server.");
-            }
-        }
-
-    }
-
-
-    public class MainThreadDispatcher : MonoBehaviour
-    {
-        private static readonly Queue<System.Action> _executionQueue = new Queue<System.Action>();
-
-        public static void Enqueue(System.Action action)
-            
-        {
-            Melon<Core>.Logger.Msg("!!!! Enqueue");
-            lock (_executionQueue)
-            {
-                _executionQueue.Enqueue(action);
-            }
-        }
-
-        void Update()
-        {
-            lock (_executionQueue)
-            {
-                while (_executionQueue.Count > 0)
-                {
-                    _executionQueue.Dequeue().Invoke();
-                }
-            }
-        }
     }
 
 
