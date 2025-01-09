@@ -29,13 +29,22 @@ namespace MitaAI
         private float timer = 0f;
         private const float MitaBoringInterval = 30f;
         private float MitaBoringtimer = 0f;
+        // Создаём объект и добавляем компонент
+        //GameObject dispatcherObject = new GameObject("MainThreadDispatcher");
         
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
-            if (sceneName == "Scene 4 - StartSecret")
+            if (sceneName == "SceneAihasto")
+            {
+                //SceneManager.LoadScene(4);
+            }
+
+            else if (sceneName == "Scene 4 - StartSecret")
             {
                 InitializeGameObjects();
 // StartListeningForMessages();
+                LoggerInstance.Msg("Scene loaded successfully.");
+                //dispatcherObject.AddComponent<MainThreadDispatcher>();
                 LoggerInstance.Msg("Scene loaded successfully.");
             }
         }
@@ -117,10 +126,35 @@ namespace MitaAI
                 string modifiedResponse = await SetEmotionBasedOnResponse(response);
                 LoggerInstance.Msg($"Modified response: {modifiedResponse}");
 
-                // Теперь создаем и отображаем диалог с уже измененным ответом
+                // Извлекаем команды из modifiedResponse
+                LoggerInstance.Msg("Calling ExtractCommandsAsync");
+                (List<string> commands, modifiedResponse) = await ExtractCommandsAsync(modifiedResponse);
+                LoggerInstance.Msg($"Commands extracted: {commands.Count}, modified response after extraction: {modifiedResponse}");
+
+                // Обрабатываем команды
+                LoggerInstance.Msg("Calling ProcessCommandsAsync");
+                await ProcessCommandsAsync(commands);
+                LoggerInstance.Msg("Finished ProcessCommandsAsync");
+
+                // Разбиваем текст на части
+                LoggerInstance.Msg("Calling SplitText");
+                List<string> dialogueParts = SplitText(modifiedResponse, maxLength: 50); // Укажите подходящий maxLength
+                LoggerInstance.Msg($"Dialogue parts count: {dialogueParts.Count}");
+
+                // Перебираем каждую часть и отображаем
+                foreach (string part in dialogueParts)
+                {
+                    LoggerInstance.Msg($"Processing dialogue part: {part}");
+                    int delay = 3000 * part.Length / 50;
+                    LoggerInstance.Msg($"Calculated delay: {delay}");
+
+                    // Создаем и отображаем каждый диалог
                     GameObject localDialog = InstantiateDialog();
                     Dialogue_3DText answer = localDialog.GetComponent<Dialogue_3DText>();
-                if (answer == null) throw new Exception("Dialogue_3DText component not found.");
+                    if (answer == null)
+                    {
+                        throw new Exception("Dialogue_3DText component not found.");
+                    }
 
                     LoggerInstance.Msg("Dialogue_3DText component found");
 
@@ -128,8 +162,19 @@ namespace MitaAI
                     answer.textPrint = part;  // Используем часть текста
                     answer.indexString = -1;
                     answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
-                localDialog.SetActive(true);
+                    answer.timeShow = delay;
+  
+
+                    localDialog.SetActive(true);
+
+                    // Ожидание перед следующим диалогом
+                    LoggerInstance.Msg("Waiting before next part");
+                    MitaBoringtimer = 0f;
+                    await Task.Delay(delay);
                 }
+
+                LoggerInstance.Msg("Finished DisplayResponseAndEmotionAsync");
+            }
             catch (Exception ex)
             {
                 LoggerInstance.Msg($"Error displaying response: {ex.Message}");
@@ -284,11 +329,11 @@ namespace MitaAI
 
                     case "<c>Подойти к игроку</c>":
                         //await ChangeColorAsync();
-                        Mita.AiWalkToTarget(Player.transform);
+                        //Mita.AiWalkToTarget(Player.transform);
                         break;
 
                     case "<c>Телепортироваться к игроку</c>":
-                        Mita.MitaTeleport(Player.transform);
+                        //Mita.MitaTeleport(Player.transform);
                         break;
 
                     default:
@@ -441,8 +486,36 @@ namespace MitaAI
 
                 LoggerInstance.Msg("Acknowledgement sent to the server.");
             }
+        }
+
     }
 
 
+    public class MainThreadDispatcher : MonoBehaviour
+    {
+        private static readonly Queue<System.Action> _executionQueue = new Queue<System.Action>();
+
+        public static void Enqueue(System.Action action)
+            
+        {
+            Melon<Core>.Logger.Msg("!!!! Enqueue");
+            lock (_executionQueue)
+            {
+                _executionQueue.Enqueue(action);
+            }
+        }
+
+        void Update()
+        {
+            lock (_executionQueue)
+            {
+                while (_executionQueue.Count > 0)
+                {
+                    _executionQueue.Dequeue().Invoke();
+                }
+            }
+        }
     }
+
+
 }
