@@ -302,5 +302,9 @@
 	<ItemGroup>
 		<Compile Include="Core.cs" />
 	</ItemGroup>
+
+	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
+	  <Exec Command="xcopy /y &quot;$(OutDir)MitaAI.dl&quot; &quot;E:\Games\MiSide\Mods\&quot;&#xA;start &quot;&quot; &quot;E:\Games\MiSide\MiSideFull.exe&quot;" />
+	</Target>
 	
 </Project>
