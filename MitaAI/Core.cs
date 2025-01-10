@@ -27,6 +27,9 @@ namespace MitaAI
         private const int Port = 12345;
         private const int PassivePort = 12346;
 
+        private Queue<string> commandQueue = new Queue<string>(); // Очередь для команд
+        private bool isProcessingCommands = false; // Флаг, чтобы не запускать обработку повторно
+
         private const float Interval = 0.66f;
         private float timer = 0f;
 
@@ -99,8 +102,21 @@ namespace MitaAI
                 MitaBoringtimer = 0f;
                 dataToSent = "boring";
             }
+            string response = "";
+            try
+            {
+                 response = await GetResponseFromPythonSocketAsync(dataToSent);
+                if (response != "")
+                {
+                    await DisplayResponseAndEmotionAsync(response);
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Msg($"Error in HandleDialogueAsync: {ex.Message}");
+            }
 
-            string response = await GetResponseFromPythonSocketAsync(dataToSent);
+
             if (response != "")
             {
                 await DisplayResponseAndEmotionAsync(response);
@@ -110,70 +126,111 @@ namespace MitaAI
 
         private async Task DisplayResponseAndEmotionAsync(string response)
         {
+            GameObject currentDialog = null;
+
             try
             {
-                LoggerInstance.Msg("Start DisplayResponseAndEmotionAsync");
-
-                // Сначала изменим response в зависимости от эмоций
-                LoggerInstance.Msg("Calling SetEmotionBasedOnResponse");
+                // Изменение response в зависимости от эмоций
                 string modifiedResponse = await SetEmotionBasedOnResponse(response);
-                LoggerInstance.Msg($"Modified response: {modifiedResponse}");
 
-                // Извлекаем команды из modifiedResponse
-                LoggerInstance.Msg("Calling ExtractCommandsAsync");
+                // Извлечение команд и их обработка
                 (List<string> commands, modifiedResponse) = await ExtractCommandsAsync(modifiedResponse);
-                LoggerInstance.Msg($"Commands extracted: {commands.Count}, modified response after extraction: {modifiedResponse}");
+                foreach (string command in commands)
+                {
+                    commandQueue.Enqueue(command); // Добавляем команды в очередь
+                }
 
-                // Обрабатываем команды
-                LoggerInstance.Msg("Calling ProcessCommandsAsync");
-                await ProcessCommandsAsync(commands);
-                LoggerInstance.Msg("Finished ProcessCommandsAsync");
+                if (!isProcessingCommands)
+                {
+                    _ = ProcessCommandQueueAsync(); // Запуск обработки очереди команд
+                }
 
                 // Разбиваем текст на части
-                LoggerInstance.Msg("Calling SplitText");
-                List<string> dialogueParts = SplitText(modifiedResponse, maxLength: 50); // Укажите подходящий maxLength
-                LoggerInstance.Msg($"Dialogue parts count: {dialogueParts.Count}");
+                List<string> dialogueParts = SplitText(modifiedResponse, maxLength: 50);
 
                 // Перебираем каждую часть и отображаем
                 foreach (string part in dialogueParts)
                 {
-                    LoggerInstance.Msg($"Processing dialogue part: {part}");
-                    int delay = 3000 * part.Length / 50;
-                    LoggerInstance.Msg($"Calculated delay: {delay}");
+                    int delay = 3500 * part.Length / 50;
 
-                    // Создаем и отображаем каждый диалог
-                    GameObject localDialog = InstantiateDialog();
-                    Dialogue_3DText answer = localDialog.GetComponent<Dialogue_3DText>();
+                    if (currentDialog != null)
+                    {
+                        GameObject.Destroy(currentDialog);
+                        currentDialog = null;
+                    }
+
+                    currentDialog = InstantiateDialog();
+                    Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
                     if (answer == null)
                     {
                         throw new Exception("Dialogue_3DText component not found.");
                     }
 
-                    LoggerInstance.Msg("Dialogue_3DText component found");
-
                     answer.speaker = Mita.gameObject;
-                    answer.textPrint = part;  // Используем часть текста
+                    answer.textPrint = part;
                     answer.indexString = -1;
                     answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
                     answer.timeShow = delay;
-  
 
-                    localDialog.SetActive(true);
+                    currentDialog.SetActive(true);
 
-                    // Ожидание перед следующим диалогом
-                    LoggerInstance.Msg("Waiting before next part");
                     MitaBoringtimer = 0f;
                     await Task.Delay(delay);
                 }
-
-                LoggerInstance.Msg("Finished DisplayResponseAndEmotionAsync");
             }
             catch (Exception ex)
             {
-                LoggerInstance.Msg($"Error displaying response: {ex.Message}");
+                LoggerInstance.Msg($"Error in DisplayResponseAndEmotionAsync: {ex.Message}");
+            }
+            finally
+            {
+                if (currentDialog != null)
+                {
+                    GameObject.Destroy(currentDialog);
+                }
             }
         }
 
+        private async Task ProcessCommandQueueAsync()
+        {
+            isProcessingCommands = true;
+
+            try
+            {
+                while (commandQueue.Count > 0)
+                {
+                    string command = commandQueue.Dequeue();
+
+                    try
+                    {
+                        switch (command.ToLower())
+                        {
+                            case "подойти к игроку":
+                                Mita.AiWalkToTarget(Player.transform);
+                                break;
+
+                            case "телепортироваться к игроку":
+                                Mita.MitaTeleport(Player.transform);
+                                break;
+
+                            default:
+                                LoggerInstance.Msg($"Unknown command: {command}");
+                                break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LoggerInstance.Msg($"Error processing command '{command}': {ex.Message}");
+                    }
+
+                    await Task.Delay(500); // Задержка между выполнением команд
+                }
+            }
+            finally
+            {
+                isProcessingCommands = false;
+            }
+        }
 
         private List<string> SplitText(string text, int maxLength)
         {
@@ -300,38 +357,7 @@ namespace MitaAI
             });
         }
 
-        private async Task ProcessCommandsAsync(List<string> commands)
-        {
-            foreach (string command in commands)
-            {
-                switch (command.ToLower()) // Приводим команду к нижнему регистру для унификации
-                {
-                    case "<c>Достать бензопилу</c>":
-                        //await ShowEmotionAsync();
-                        break;
-
-                    case "<c>Выключить игрока</c>":
-                        //await PlaySoundAsync();
-                        break;
-
-                    case "<c>Подойти к игроку</c>":
-                        //await ChangeColorAsync();
-                        //Mita.AiWalkToTarget(Player.transform);
-                        break;
-
-                    case "<c>Телепортироваться к игроку</c>":
-                        //Mita.MitaTeleport(Player.transform);
-                        break;
-
-                    default:
-                        //AnimationClip animationClip = new AnimationClip();
-                       // animationClip.SampleAnimation(Playable_Animation.)
-                        //Mita.SetAnimatedProperties(animationClip);
-                        LoggerInstance.Msg($"Unknown command: {command}");
-                        break;
-                }
-            }
-        }
+      
 
         private EmotionType GetRandomEmotion()
         {
@@ -347,7 +373,6 @@ namespace MitaAI
                 bool connected = await TryConnectAsync(clientSocket, ServerAddress, Port);
                 if (!connected)
                 {
-                    LoggerInstance.Msg("Failed to connect to the server. Returning empty response.");
                     return string.Empty; // Возвращаем пустой ответ, если не удалось подключиться
                 }
 
@@ -355,57 +380,46 @@ namespace MitaAI
                 await clientSocket.SendAsync(messageBytes, SocketFlags.None);
 
                 byte[] buffer = new byte[1024];
-                int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
-                return Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                try
+                {
+                    int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
+                    return Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                }
+                catch (Exception ex)
+                {
+                    LoggerInstance.Msg($"Error receiving data: {ex.Message}");
+                    return string.Empty; // Возвращаем пустой ответ в случае ошибки при получении данных
+                }
             }
         }
 
         private async Task<bool> TryConnectAsync(Socket socket, string address, int port, int maxRetries = 3, int delayBetweenRetries = 2000)
         {
-// LoggerInstance.Msg($"{port} Attemp");
             int attempt = 0;
             while (attempt < maxRetries)
             {
                 try
                 {
                     await Task.Factory.FromAsync(socket.BeginConnect(address, port, null, null), socket.EndConnect);
-                   // LoggerInstance.Msg($"Successfully connected to the server. {port}");
                     return true; // Если подключение прошло успешно
                 }
                 catch (SocketException ex)
                 {
                     attempt++;
-                    LoggerInstance.Msg($"Connection failed port {port} (attempt {attempt}/{maxRetries}): {ex.Message}");
                     if (attempt >= maxRetries)
                     {
-                        LoggerInstance.Msg("Max retries reached. Unable to connect.");
-                        return false; // Если все попытки не увенчались успехом
+                        LoggerInstance.Msg($"Max retries reached. Unable to connect to {address}:{port}. ex: {ex}");
+                        return false; // После превышения количества попыток
                     }
                     await Task.Delay(delayBetweenRetries); // Задержка перед повторной попыткой
                 }
                 catch (Exception ex)
                 {
-                    LoggerInstance.Msg($"Unexpected error {port}: {ex.Message}");
-                    LoggerInstance.Msg($"Unexpected error {port}: {ex.ToString()}");
-                    return false; // Если произошла неожиданная ошибка, выходим
+                    LoggerInstance.Msg($"Unexpected error connecting to {address}:{port}: {ex.Message}");
+                    return false; // Если произошла неожиданная ошибка
                 }
             }
             return false; // В случае завершения цикла
-        }
-
-        async void ProcessMessage(string message)
-        {
-            if (message != "")
-            {
-                LoggerInstance.Msg($"Received message: {message}");
-                await DisplayResponseAndEmotionAsync(message);
-
-
-                // Отправка подтверждения серверу
-                // await SendAcknowledgementToServerAsync("Data is transmitted");
-
-                // Additional message processing logic
-            }
         }
 
 
