@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFramework>net6.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
@@ -304,7 +304,7 @@
 	</ItemGroup>
 
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
-	  <Exec Command="xcopy /y &quot;$(OutDir)MitaAI.dl&quot; &quot;E:\Games\MiSide\Mods\&quot;&#xA;start &quot;&quot; &quot;E:\Games\MiSide\MiSideFull.exe&quot;" />
+	  <Exec Command="xcopy /y &quot;$(OutDir)MitaAI.dl&quot; &quot;E:\Games\MiSide\Mods\&quot;" />
 	</Target>
 	
 </Project>
