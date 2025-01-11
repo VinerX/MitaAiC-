@@ -17,7 +17,8 @@ using UnityEngine.Events;
 using System.Reflection;
 using static MelonLoader.InteropSupport;
 using Microsoft.VisualBasic;
-
+using UnityEngine.Networking;
+using System.Collections;
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
 
@@ -27,6 +28,8 @@ namespace MitaAI
     {
         private MitaPerson Mita;
         private PlayerPerson Player;
+        float distance = 0f;
+
         private GameObject CustomDialog;
 
         private const string ServerAddress = "127.0.0.1";
@@ -41,6 +44,7 @@ namespace MitaAI
         private float MitaBoringtimer = 0f;
 
         string playerMessage = "";
+        string patch_to_sound_file = "";
         List<string> RequiredSceneNames = new List<string> { "Scene 4 - StartSecret", "Scene 3 - WeTogether" };
         string CurrentSceneName;
 
@@ -154,6 +158,11 @@ namespace MitaAI
             base.OnFixedUpdate();
         }
 
+        float getDistance()
+        {
+            return Vector3.Distance(Mita.transform.position, Player.transform.position);
+        }
+
         private async Task HandleDialogueAsync()
         {
             
@@ -184,7 +193,7 @@ namespace MitaAI
             }
             
         }
-
+        
         private async Task DisplayResponseAndEmotionAsync(string response)
         {
             GameObject currentDialog = null;
@@ -212,6 +221,21 @@ namespace MitaAI
                 {
 
                     throw;
+                }
+
+                if (!string.IsNullOrEmpty(patch_to_sound_file))
+                {
+                    try
+                    {
+                        LoggerInstance.Msg("patch_to_sound_file not null");
+                        await LoadAudioClipFromFileAsync(patch_to_sound_file);
+                        patch_to_sound_file = "";
+                    }
+                    catch (Exception ex)
+                    {
+                        LoggerInstance.Msg(ex);
+                    }
+                    
                 }
 
 
@@ -500,15 +524,28 @@ namespace MitaAI
                 {
                     return string.Empty; // Возвращаем пустой ответ, если не удалось подключиться
                 }
+                getDistance();
+                input = $"{input}|||{distance}";
 
                 byte[] messageBytes = Encoding.UTF8.GetBytes(input);
                 await clientSocket.SendAsync(messageBytes, SocketFlags.None);
 
-                byte[] buffer = new byte[1024];
+                byte[] buffer = new byte[2500];
                 try
                 {
                     int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
-                    return Encoding.UTF8.GetString(buffer, 0, bytesRead);
+
+                    string receivedMessage = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+
+                    string[] parts = receivedMessage.Split(new string[] { "|||" }, StringSplitOptions.None);
+
+                    //LoggerInstance.Msg($"Got from piton  {receivedMessage}");
+                    string response = parts[0];
+
+                    
+                    patch_to_sound_file = parts[1];
+                    //LoggerInstance.Msg($"patch_to_sound_file from piton  {patch_to_sound_file}");
+                    return response;
                 }
                 catch (Exception ex)
                 {
@@ -727,6 +764,46 @@ namespace MitaAI
             // Создаем и возвращаем спрайт из текстуры
             return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f));
         }
+        private async Task LoadAudioClipFromFileAsync(string filePath)
+        {
+            try
+            {
+                MelonLoader.MelonLogger.Msg("Loading audio file: " + filePath);
+
+                // Читаем все байты файла
+                byte[] fileData = File.ReadAllBytes(filePath);
+
+                // Создаем аудиоклип из байтов
+                AudioClip audioClip = AudioClip.Create("LoadedAudio", fileData.Length, 1, 44100, false);
+                audioClip.SetData(ConvertByteArrayToFloatArray(fileData), 0);
+
+                // Создаем аудиоисточник и проигрываем звук
+                AudioSource audioSource = new GameObject("AudioSource").AddComponent<AudioSource>();
+                audioSource.clip = audioClip;
+                audioSource.Play();
+
+                MelonLoader.MelonLogger.Msg("Audio is playing...");
+            }
+            catch (Exception ex)
+            {
+                MelonLoader.MelonLogger.Error("Error loading audio: " + ex.Message);
+            }
+        }
+
+        // Вспомогательный метод для преобразования байтов в массив с плавающей точкой
+        private float[] ConvertByteArrayToFloatArray(byte[] byteArray)
+        {
+            float[] floatArray = new float[byteArray.Length / 2]; // предполагаем, что файл в 16-битах
+            for (int i = 0; i < floatArray.Length; i++)
+            {
+                short sample = BitConverter.ToInt16(byteArray, i * 2);
+                floatArray[i] = sample / 32768f; // Нормализация в диапазон [-1, 1]
+            }
+            return floatArray;
+        }
+
+
+
 
     }
 
