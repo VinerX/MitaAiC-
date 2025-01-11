@@ -16,6 +16,7 @@ using System.Diagnostics.Tracing;
 using UnityEngine.Events;
 using System.Reflection;
 using static MelonLoader.InteropSupport;
+using Microsoft.VisualBasic;
 
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
@@ -40,28 +41,34 @@ namespace MitaAI
         private float MitaBoringtimer = 0f;
 
         string playerMessage = "";
-        
+        List<string> RequiredSceneNames = new List<string> { "Scene 4 - StartSecret", "Scene 3 - WeTogether" };
+        string CurrentSceneName;
+
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
 
         {
-            if (sceneName == "AiHasto")
+            CurrentSceneName = sceneName;
+            if (CurrentSceneName == "AiHasto")
             {
                 //GameObject GameObject = GameObject.Find("MenuGame")>
             }
 
-            else if (sceneName == "SceneMenu")
+            else if (CurrentSceneName == "SceneMenu")
             {
                 Menu MainMenu = GameObject.Find("MenuGame").GetComponent<Menu>();
                 MainMenu.Alternative();
                 MainMenu.ButtonLoadScene("Scene 4 - StartSecret");
-               
+                //MainMenu.ButtonLoadScene("Scene 3 - WeTogether");
+
             }
 
-            else if (sceneName == "Scene 4 - StartSecret")
+            else if (RequiredSceneNames.Contains(CurrentSceneName) )
             {
                 try
                 {
                     GameObject Trigger = GameObject.Find("World/Quests/Quest 1/Trigger Entry Kitchen");
+                    Location34_Communication Location34_Communication = GameObject.Find("World/Quests/Quest 1/Addon").GetComponent<Location34_Communication>();
+                    Location34_Communication.indexSwitchAnimation = 1;
                     //Trigger.SetActive(false);
                 }
                 catch
@@ -76,20 +83,8 @@ namespace MitaAI
         {
             Mita = GameObject.Find("Mita")?.GetComponent<MitaPerson>();
 
-            try { 
-            // Находим все AnimationClip в проекте
-            AnimationClip[] allClips = Resources.FindObjectsOfTypeAll<AnimationClip>();
-
-            foreach (var clip in allClips)
-            {
-                if (clip.name == "Mita Idle")
-                {
-                    // Устанавливаем найденный AnimationClip (можно заменить на вашу логику установки)
-                    LoggerInstance.Msg($"Found and set animation: {clip.name}");
-                    // Пример использования: назначение clip анимационному контроллеру или объекту
-                    
-                }
-            }
+            try {
+                //AnimationClip animation = AnimationClip.;
             }
             catch (Exception)
             {
@@ -110,14 +105,23 @@ namespace MitaAI
             if (world == null)
             {
                 LoggerInstance.Msg("World object not found.");
-                return;
+
             }
 
+
             Transform dialogOriginal = world.Find("Quests/Quest 1/Dialogues/Dialogue Mita/Dialogue Finish Aihastion/DMita 2");
+
             if (dialogOriginal == null)
             {
                 LoggerInstance.Msg("Target object 'DMita 2' not found.");
-                return;
+                dialogOriginal = world.Find("Quests/Quest 1 Start/3D Text 5");
+
+                if (dialogOriginal == null)
+                {
+                    
+                    LoggerInstance.Msg("Target object '3D Text 5' not found.");
+                }
+
             }
 
             CustomDialog = GameObject.Instantiate(dialogOriginal.gameObject, world.Find("Quests/Quest 1/Dialogues"));
@@ -136,7 +140,7 @@ namespace MitaAI
 
         public override async void OnFixedUpdate()
         {
-            if (SceneManager.GetActiveScene().name != "Scene 4 - StartSecret") return;
+            if ( !RequiredSceneNames.Contains(CurrentSceneName) ) return;
 
             timer += Time.fixedDeltaTime;
             MitaBoringtimer += Time.fixedDeltaTime;
@@ -184,9 +188,11 @@ namespace MitaAI
         private async Task DisplayResponseAndEmotionAsync(string response)
         {
             GameObject currentDialog = null;
-
+            isInputBlocked = true; // Устанавливаем блокировку
             try
             {
+                
+
                 // Изменение response в зависимости от эмоций
                 string modifiedResponse = await SetEmotionBasedOnResponse(response);
 
@@ -198,8 +204,20 @@ namespace MitaAI
                     ProcessCommands(commands); // Сразу обрабатываем команды
                 }
 
+                try
+                {
+                    //BlockInputFieldAsync(4000 * response.Length / 50); // Явно игнорируем результат
+                }
+                catch (Exception)
+                {
+
+                    throw;
+                }
+
+
                 // Разбиваем текст на части
                 List<string> dialogueParts = SplitText(modifiedResponse, maxLength: 50);
+
 
                 // Перебираем каждую часть и отображаем
                 foreach (string part in dialogueParts)
@@ -248,7 +266,7 @@ namespace MitaAI
             finally
             {
                 if (currentDialog != null) { 
-                
+                isInputBlocked = false; // Убираем блокировку
                 GameObject_Destroy delete = currentDialog.AddComponent<GameObject_Destroy>();
                     delete.timeDestroy = 3f;
                     delete.des = true;
@@ -528,11 +546,17 @@ namespace MitaAI
             }
             return false; // В случае завершения цикла
         }
-        
+
+
+        // Ввод
+
+        private bool isInputBlocked = false; // Флаг для блокировки
         private static GameObject InputFieldComponent;
 
         public override void OnUpdate()
         {
+           
+
             // Обрабатываем нажатие Tab для переключения InputField
             if (Input.GetKeyDown(KeyCode.Tab)) // Используем GetKeyDown для одноразового срабатывания
             {
@@ -549,6 +573,9 @@ namespace MitaAI
                 }
                 else
                 {
+
+                    if (isInputBlocked) return;
+
                     // Переключаем видимость InputField
                     bool isActive = InputFieldComponent.activeSelf;
                     InputFieldComponent.SetActive(!isActive);
@@ -570,11 +597,24 @@ namespace MitaAI
             else if (Input.GetKeyDown(KeyCode.Return) && InputFieldComponent != null)
             {
                 var ifc = InputFieldComponent.GetComponent<InputField>();
-                ProcessInput(ifc.text); // Пустышка для обработки текста
-                ifc.text = "";
+                if (ifc.text != "")
+                {
+                    ProcessInput(ifc.text); // Пустышка для обработки текста
+                    ifc.text = "";
+                }
             }
-        }
 
+        }
+        private async void BlockInputFieldAsync(float t)
+        {
+            isInputBlocked = true; // Устанавливаем блокировку
+            InputFieldComponent?.SetActive(false); // Отключаем поле ввода, если оно активно
+
+            await Task.Delay((int)(t)); // Ждём указанное время (в миллисекундах)
+
+            InputFieldComponent.SetActive(true); // Отключаем поле ввода, если оно активно
+            isInputBlocked = false; // Снимаем блокировку
+        }
 
         private void CreateInputComponent()
         {
@@ -600,16 +640,17 @@ namespace MitaAI
             LoggerInstance.Msg("3");
 
             var image = InputFieldComponent.AddComponent<UnityEngine.UI.Image>();
-            try
+/*            try
             {
-                var KeyRun = _interface.transform.Find("GameController/Interface/SubtitlesFrame").GetComponent<UnityEngine.UI.Image>();
+                var KeyRun = _interface.transform.Find("GameController/Interface/SubtitlesFrame/Text 2").GetComponent<UnityEngine.UI.Image>();
+                LoggerInstance.Msg("KeyRun");
                 image.sprite = KeyRun.sprite;
             }
             catch (Exception ex)
-            {
+            {*/
                 Sprite blackSprite = CreateBlackSprite(100, 100);
                 image.sprite = blackSprite;
-            }
+            //}
 
             image.color = new Color(0f, 0f, 0f,0.7f);
             ifc.image = image;
