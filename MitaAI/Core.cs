@@ -11,13 +11,18 @@ using UnityEngine.UI;
 using static Il2CppRootMotion.FinalIK.InteractionObject;
 using UnityEngine.Animations;
 using UnityEngine.UIElements;
+using Harmony;
+using System.Diagnostics.Tracing;
+using UnityEngine.Events;
+using System.Reflection;
+using static MelonLoader.InteropSupport;
 
-[assembly: MelonInfo(typeof(MitaAI.Core), "MitaAI", "1.0.0", "Dmitry", null)]
+[assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
 
 namespace MitaAI
 {
-    public class Core : MelonMod
+    public class MitaCore : MelonMod
     {
         private MitaPerson Mita;
         private PlayerPerson Player;
@@ -27,25 +32,42 @@ namespace MitaAI
         private const int Port = 12345;
         private const int PassivePort = 12346;
 
-        private Queue<string> commandQueue = new Queue<string>(); // Очередь для команд
-        private bool isProcessingCommands = false; // Флаг, чтобы не запускать обработку повторно
 
         private const float Interval = 0.66f;
         private float timer = 0f;
 
-        private const float MitaBoringInterval = 30f;
+        private const float MitaBoringInterval = 60f;
         private float MitaBoringtimer = 0f;
 
+        string playerMessage = "";
         
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
+
         {
-            if (sceneName == "SceneAihasto")
+            if (sceneName == "AiHasto")
             {
-                //SceneManager.LoadScene(4);
+                //GameObject GameObject = GameObject.Find("MenuGame")>
+            }
+
+            else if (sceneName == "SceneMenu")
+            {
+                Menu MainMenu = GameObject.Find("MenuGame").GetComponent<Menu>();
+                MainMenu.Alternative();
+                MainMenu.ButtonLoadScene("Scene 4 - StartSecret");
+               
             }
 
             else if (sceneName == "Scene 4 - StartSecret")
             {
+                try
+                {
+                    GameObject Trigger = GameObject.Find("World/Quests/Quest 1/Trigger Entry Kitchen");
+                    //Trigger.SetActive(false);
+                }
+                catch
+                {
+                    
+                }
                 InitializeGameObjects();
             }
         }
@@ -53,6 +75,31 @@ namespace MitaAI
         private void InitializeGameObjects()
         {
             Mita = GameObject.Find("Mita")?.GetComponent<MitaPerson>();
+
+            try { 
+            // Находим все AnimationClip в проекте
+            AnimationClip[] allClips = Resources.FindObjectsOfTypeAll<AnimationClip>();
+
+            foreach (var clip in allClips)
+            {
+                if (clip.name == "Mita Idle")
+                {
+                    // Устанавливаем найденный AnimationClip (можно заменить на вашу логику установки)
+                    LoggerInstance.Msg($"Found and set animation: {clip.name}");
+                    // Пример использования: назначение clip анимационному контроллеру или объекту
+                    
+                }
+            }
+            }
+            catch (Exception)
+            {
+
+            }
+            LoggerInstance.Msg("Animation 'Mita Idle' not found.");
+
+
+            //Mita.gameObject.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled = true;
+
             Player = GameObject.Find("Person")?.GetComponent<PlayerPerson>();
             LoggerInstance.Msg(Mita != null ? "Mita found!" : "Mita not found.");
             LoggerInstance.Msg(Player != null ? "Player found!" : "Player not found.");
@@ -62,19 +109,29 @@ namespace MitaAI
             Transform world = GameObject.Find("World")?.transform;
             if (world == null)
             {
-                Debug.LogError("World object not found.");
+                LoggerInstance.Msg("World object not found.");
                 return;
             }
 
             Transform dialogOriginal = world.Find("Quests/Quest 1/Dialogues/Dialogue Mita/Dialogue Finish Aihastion/DMita 2");
             if (dialogOriginal == null)
             {
-                Debug.LogError("Target object 'DMita 2' not found.");
+                LoggerInstance.Msg("Target object 'DMita 2' not found.");
                 return;
             }
 
             CustomDialog = GameObject.Instantiate(dialogOriginal.gameObject, world.Find("Quests/Quest 1/Dialogues"));
-            CustomDialog.name = "Custom Dialoge";
+            CustomDialog.name = "Custom Dialogue";
+            Dialogue_3DText CustomDialogText = CustomDialog.GetComponent<Dialogue_3DText>();
+            
+            CustomDialogText.nextText = null;
+            CustomDialogText.sizeHeight = 0.0687f;
+            CustomDialogText.sizeSymbol = 0.0014f;
+            CustomDialogText.sizeWidth =  0.75f;
+            CustomDialogText.xPrint = 0.413f;
+            CustomDialogText.indexString = -1;
+
+
         }
 
         public override async void OnFixedUpdate()
@@ -97,7 +154,13 @@ namespace MitaAI
         {
             
             string dataToSent = "waiting";
-            if (MitaBoringtimer >= MitaBoringInterval)
+            if (playerMessage != "")
+            {
+                MitaBoringtimer = 0f;
+                dataToSent = playerMessage;
+                playerMessage = "";
+            }
+            else if (MitaBoringtimer >= MitaBoringInterval)
             {
                 MitaBoringtimer = 0f;
                 dataToSent = "boring";
@@ -105,7 +168,7 @@ namespace MitaAI
             string response = "";
             try
             {
-                 response = await GetResponseFromPythonSocketAsync(dataToSent);
+                response = await GetResponseFromPythonSocketAsync(dataToSent);
                 if (response != "")
                 {
                     await DisplayResponseAndEmotionAsync(response);
@@ -114,12 +177,6 @@ namespace MitaAI
             catch (Exception ex)
             {
                 LoggerInstance.Msg($"Error in HandleDialogueAsync: {ex.Message}");
-            }
-
-
-            if (response != "")
-            {
-                await DisplayResponseAndEmotionAsync(response);
             }
             
         }
@@ -133,16 +190,12 @@ namespace MitaAI
                 // Изменение response в зависимости от эмоций
                 string modifiedResponse = await SetEmotionBasedOnResponse(response);
 
-                // Извлечение команд и их обработка
+                // Извлечение команд и их выполнение
                 (List<string> commands, modifiedResponse) = await ExtractCommandsAsync(modifiedResponse);
-                foreach (string command in commands)
-                {
-                    commandQueue.Enqueue(command); // Добавляем команды в очередь
-                }
 
-                if (!isProcessingCommands)
+                if (commands.Count > 0)
                 {
-                    _ = ProcessCommandQueueAsync(); // Запуск обработки очереди команд
+                    ProcessCommands(commands); // Сразу обрабатываем команды
                 }
 
                 // Разбиваем текст на части
@@ -151,31 +204,41 @@ namespace MitaAI
                 // Перебираем каждую часть и отображаем
                 foreach (string part in dialogueParts)
                 {
-                    int delay = 3500 * part.Length / 50;
+                    int delay = 4000 * part.Length / 50;
 
                     if (currentDialog != null)
                     {
-                        GameObject.Destroy(currentDialog);
+                        GameObject_Destroy delete = currentDialog.AddComponent<GameObject_Destroy>();
+                        delete.timeDestroy = 3f;
+                        delete.des = true;
+                        delete.destroy();
+                    
                         currentDialog = null;
                     }
 
                     currentDialog = InstantiateDialog();
-                    Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
-                    if (answer == null)
+                    if (currentDialog != null)
                     {
-                        throw new Exception("Dialogue_3DText component not found.");
+                        Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
+                        if (answer == null)
+                        {
+                            throw new Exception("Dialogue_3DText component not found.");
+                        }
+
+                        answer.speaker = Mita.gameObject;
+                        answer.textPrint = part;
+                        answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
+                        answer.timeShow = delay;
+
+                        currentDialog.SetActive(true);
+
+                        MitaBoringtimer = 0f;
+                        await Task.Delay(delay);
                     }
-
-                    answer.speaker = Mita.gameObject;
-                    answer.textPrint = part;
-                    answer.indexString = -1;
-                    answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
-                    answer.timeShow = delay;
-
-                    currentDialog.SetActive(true);
-
-                    MitaBoringtimer = 0f;
-                    await Task.Delay(delay);
+                    else
+                    {
+                        throw new Exception("currentDialog is null.");
+                    }
                 }
             }
             catch (Exception ex)
@@ -184,23 +247,68 @@ namespace MitaAI
             }
             finally
             {
-                if (currentDialog != null)
-                {
-                    GameObject.Destroy(currentDialog);
+                if (currentDialog != null) { 
+                
+                GameObject_Destroy delete = currentDialog.AddComponent<GameObject_Destroy>();
+                    delete.timeDestroy = 3f;
+                    delete.des = true;
+                    delete.destroy();
                 }
             }
         }
 
-        private async Task ProcessCommandQueueAsync()
+        private void PlayerTalk(string text)
         {
-            isProcessingCommands = true;
+            GameObject currentDialog = null;
 
             try
             {
-                while (commandQueue.Count > 0)
-                {
-                    string command = commandQueue.Dequeue();
+              
+                int delay = 4000 * text.Length / 50;
 
+                currentDialog = InstantiateDialog();
+                if (currentDialog != null)
+                {
+                    Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
+                    if (answer == null)
+                    {
+                        throw new Exception("Dialogue_3DText component not found.");
+                    }
+
+                    answer.speaker = Player.gameObject;
+                    answer.textPrint = text;
+                    answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Player;
+                    answer.timeShow = delay;
+                    
+                    currentDialog.SetActive(true);
+
+                    MitaBoringtimer = 0f;
+                }
+                else
+                {
+                    throw new Exception("currentDialog is null.");
+                }
+                
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Msg($"PlayerTalk: {ex.Message}");
+            }
+            finally
+            {
+                if (currentDialog != null)
+                {
+
+                }
+            }
+        }
+
+        private void ProcessCommands(List<string> commands)
+        {
+            try
+            {
+                foreach (string command in commands)
+                {
                     try
                     {
                         switch (command.ToLower())
@@ -223,12 +331,11 @@ namespace MitaAI
                         LoggerInstance.Msg($"Error processing command '{command}': {ex.Message}");
                     }
 
-                    await Task.Delay(500); // Задержка между выполнением команд
                 }
             }
-            finally
+            catch (Exception ex)
             {
-                isProcessingCommands = false;
+                LoggerInstance.Msg($"Error in ProcessCommandsAsync: {ex.Message}");
             }
         }
 
@@ -280,7 +387,7 @@ namespace MitaAI
             Transform world = GameObject.Find("World")?.transform;
             if (world == null)
             {
-                Debug.LogError("World object not found.");
+                LoggerInstance.Msg("World object not found.");
                 return null;
             }
 
@@ -305,7 +412,7 @@ namespace MitaAI
             catch (Exception ex)
             {
                 LoggerInstance.Msg($"Error extracting emotion: {ex.Message}");
-                Mita.FaceEmotionType(GetRandomEmotion());
+                //Mita.FaceEmotionType(GetRandomEmotion());
                 return response; // Если произошла ошибка, возвращаем исходный текст
             }
         }
@@ -408,7 +515,7 @@ namespace MitaAI
                     attempt++;
                     if (attempt >= maxRetries)
                     {
-                        LoggerInstance.Msg($"Max retries reached. Unable to connect to {address}:{port}. ex: {ex}");
+                        //LoggerInstance.Msg($"Max retries reached. Unable to connect to {address}:{port}.");
                         return false; // После превышения количества попыток
                     }
                     await Task.Delay(delayBetweenRetries); // Задержка перед повторной попыткой
@@ -421,7 +528,164 @@ namespace MitaAI
             }
             return false; // В случае завершения цикла
         }
+        
+        private static GameObject InputFieldComponent;
 
+        public override void OnUpdate()
+        {
+            // Обрабатываем нажатие Tab для переключения InputField
+            if (Input.GetKeyDown(KeyCode.Tab)) // Используем GetKeyDown для одноразового срабатывания
+            {
+                if (InputFieldComponent == null)
+                {
+                    try
+                    {
+                        CreateInputComponent();
+                    }
+                    catch (Exception ex)
+                    {
+                        LoggerInstance.Msg("CreateInputComponent ex:" + ex);
+                    }
+                }
+                else
+                {
+                    // Переключаем видимость InputField
+                    bool isActive = InputFieldComponent.activeSelf;
+                    InputFieldComponent.SetActive(!isActive);
+
+                    // Если объект стал активным, активируем InputField
+                    if (InputFieldComponent.activeSelf)
+                    {
+                        var ifc = InputFieldComponent.GetComponent<InputField>();
+                        if (ifc != null)
+                        {
+                            ifc.Select();
+                            ifc.ActivateInputField();
+                        }
+                    }
+                }
+            }
+
+            // Обрабатываем нажатие Enter для передачи текста в функцию
+            else if (Input.GetKeyDown(KeyCode.Return) && InputFieldComponent != null)
+            {
+                var ifc = InputFieldComponent.GetComponent<InputField>();
+                ProcessInput(ifc.text); // Пустышка для обработки текста
+                ifc.text = "";
+            }
+        }
+
+
+        private void CreateInputComponent()
+        {
+            LoggerInstance.Msg("1");
+
+            // Создаем объект InputField
+            InputFieldComponent = new GameObject("InputFieldComponent");
+
+            var ifc = InputFieldComponent.AddComponent<InputField>();
+            var _interface = GameObject.Find("Interface");
+            if (_interface == null) return;
+
+            InputFieldComponent.transform.parent = _interface.transform;
+            LoggerInstance.Msg("2");
+
+            var rect = InputFieldComponent.AddComponent<RectTransform>();
+            rect.anchoredPosition = Vector2.zero;
+
+            rect.anchorMin = new Vector2(0.5f, 0);
+            rect.anchorMax = new Vector2(0.5f, 0);
+            rect.pivot = new Vector2(0.5f, 0);
+
+            LoggerInstance.Msg("3");
+
+            var image = InputFieldComponent.AddComponent<UnityEngine.UI.Image>();
+            try
+            {
+                var KeyRun = _interface.transform.Find("GameController/Interface/SubtitlesFrame").GetComponent<UnityEngine.UI.Image>();
+                image.sprite = KeyRun.sprite;
+            }
+            catch (Exception ex)
+            {
+                Sprite blackSprite = CreateBlackSprite(100, 100);
+                image.sprite = blackSprite;
+            }
+
+            image.color = new Color(0f, 0f, 0f,0.7f);
+            ifc.image = image;
+
+            LoggerInstance.Msg("4");
+
+            var TextLegacy = new GameObject("TextLegacy");
+            var textComponent = TextLegacy.AddComponent<Text>();
+            TextLegacy.transform.parent = InputFieldComponent.transform;
+            var rectText = TextLegacy.GetComponent<RectTransform>();
+            rectText.sizeDelta = new Vector2(500, 100);
+            rectText.anchoredPosition = Vector2.zero;
+            var texts = GameObject.FindObjectsOfType<Text>();
+
+            LoggerInstance.Msg("5");
+
+            foreach (var text in texts)
+            {
+                textComponent.font = text.font;
+                textComponent.fontStyle = text.fontStyle;
+                textComponent.fontSize = 35;
+                if (textComponent.font != null) break;
+            }
+
+            
+            LoggerInstance.Msg("6");
+
+            var textInputField = InputFieldComponent.GetComponent<InputField>();
+            textInputField.textComponent = TextLegacy.GetComponent<Text>();
+            textInputField.text = "Введи текст";
+            textInputField.textComponent.color = Color.yellow;
+            textInputField.textComponent.alignment = TextAnchor.MiddleCenter;
+
+            LoggerInstance.Msg("7");
+
+            // Устанавливаем 70% ширины от родителя
+            RectTransform parentRect = _interface.GetComponent<RectTransform>();
+            float parentWidth = parentRect.rect.width;
+            rect.sizeDelta = new Vector2(parentWidth * 0.7f, rect.sizeDelta.y);
+            rectText.sizeDelta = rect.sizeDelta;
+            textInputField.Select();
+            textInputField.ActivateInputField();
+
+            LoggerInstance.Msg("8");
+        }
+
+
+        // Пустышка для обработки ввода
+        private void ProcessInput(string inputText)
+        {
+            LoggerInstance.Msg("Input received: " + inputText);
+            PlayerTalk(inputText);
+            playerMessage = inputText;
+
+        }
+        public Sprite CreateBlackSprite(int width, int height)
+        {
+            // Создаем текстуру с заданными размерами
+            Texture2D texture = new Texture2D(width, height);
+
+            // Задаем все пиксели как черные
+            Color darkColor = new Color(0f, 0f, 0f,0f);  // Черный цвет
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    texture.SetPixel(x, y, darkColor);
+                }
+            }
+
+            // Применяем изменения
+            texture.Apply();
+
+            // Создаем и возвращаем спрайт из текстуры
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f));
+        }
 
     }
 

@@ -299,12 +299,20 @@
 		<EnableDefaultCompileItems>false</EnableDefaultCompileItems>
 	</PropertyGroup>
 
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+	  <IsPublishable>False</IsPublishable>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+	  <IsPublishable>False</IsPublishable>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<Compile Include="Core.cs" />
 	</ItemGroup>
 
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
-	  <Exec Command="xcopy /y &quot;$(OutDir)MitaAI.dl&quot; &quot;E:\Games\MiSide\Mods\&quot;" />
+	  <Exec Command="xcopy /y &quot;$(OutDir)\MitaAI.dll&quot; &quot;E:\Games\MiSide\Mods\&quot;" />
 	</Target>
 	
 </Project>
