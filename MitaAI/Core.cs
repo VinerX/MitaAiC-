@@ -201,18 +201,23 @@ namespace MitaAI
 
         private GameObject GetOrCreateDialog()
         {
+            // Если нет доступного, создаем новый
+            GameObject newDialog = InstantiateDialog();
+            //dialogPool.Add(newDialog);
+            return newDialog;
+
             // Ищем неактивный диалог в пуле
             foreach (var dialog in dialogPool)
             {
                 if (!dialog.activeSelf)
                 {
-                    ClearChildren(dialog.gameObject);
+                    //ClearChildren(dialog.gameObject);
                     return dialog;
                 }
             }
 
             // Если нет доступного, создаем новый
-            GameObject newDialog = InstantiateDialog();
+            //GameObject newDialog = InstantiateDialog();
             dialogPool.Add(newDialog);
             return newDialog;
 
@@ -240,6 +245,9 @@ namespace MitaAI
                 string modifiedResponse = await SetEmotionBasedOnResponse(response);
 
                 AudioClip audioClip = null;
+                int delay = 4000 * response.Length / 50; // Инициализируем delay для общего случая
+
+                // Загружаем звук, если он есть, перед началом обработки текста
                 if (!string.IsNullOrEmpty(patch_to_sound_file))
                 {
                     try
@@ -247,73 +255,105 @@ namespace MitaAI
                         LoggerInstance.Msg("patch_to_sound_file not null");
                         audioClip = await LoadAudioClipFromFileAsync(patch_to_sound_file);
                         patch_to_sound_file = "";
+
+                        // Создаем или получаем диалоговое окно
+                        GameObject currentDialog = GetOrCreateDialog();
+                        currentDialog.SetActive(true);
+                        Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
+
+                        // Если есть аудио, проигрываем его до начала текста
+                        if (audioClip != null)
+                        {
+                            LoggerInstance.Msg("Loading voice...");
+                            answer.timeSound = delay;
+                            answer.LoadVoice(audioClip);
+                            audioClip = null;
+                        }
+
                     }
                     catch (Exception ex)
                     {
-                        LoggerInstance.Msg($"Error loading audio file: {ex.Message}");
+                        LoggerInstance.Error($"Error loading audio file: {ex.Message}");
                     }
                 }
 
+                // Разбиваем ответ на части
                 List<string> dialogueParts = SplitText(modifiedResponse, maxLength: 50);
 
                 foreach (string part in dialogueParts)
                 {
                     try
                     {
+                        LoggerInstance.Msg($"Processing dialogue part: {part}");
+
+                        // Извлекаем команды и часть текста
                         (List<string> commands, string MofifiedPart) = await ExtractCommandsAsync(part);
 
+                        // Если есть команды, обрабатываем их
                         if (commands.Count > 0)
                         {
-                            ProcessCommands(commands);
+                            LoggerInstance.Msg("Commands detected, processing...");
+                            try
+                            {
+                                ProcessCommands(commands);
+                            }
+                            catch (Exception cmdEx)
+                            {
+                                LoggerInstance.Error($"Error processing commands: {cmdEx.Message}");
+                            }
                         }
 
-                        int delay = 4000 * MofifiedPart.Length / 50;
+                        // Пересчитываем задержку для текущей части
+                        delay = 4000 * MofifiedPart.Length / 50;
 
+                        // Создаем или получаем диалоговое окно
                         GameObject currentDialog = GetOrCreateDialog();
                         currentDialog.SetActive(true);
-
                         Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
                         if (answer == null)
                         {
+                            LoggerInstance.Error("Dialogue_3DText component not found.");
                             throw new Exception("Dialogue_3DText component not found.");
                         }
 
                         if (Mita?.gameObject == null)
                         {
+                            LoggerInstance.Error("Mita or Mita.gameObject is null.");
                             throw new Exception("Mita or Mita.gameObject is null.");
                         }
 
+                        // Устанавливаем данные для текста
                         answer.textPrint = MofifiedPart;
+                        //answer.textPrintNow = MofifiedPart;
                         answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
                         answer.timeShow = delay;
                         answer.speaker = Mita.gameObject;
 
-                        if (audioClip != null)
-                        {
-                            answer.LoadVoice(audioClip);
-                            audioClip = null;
-                        }
-
+                        // Можем пропустить sleep (задержку) если нужен только звук
                         MitaBoringtimer = 0f;
+
+                        // Выводим текст без звука
                         await Task.Delay(delay);
 
                         currentDialog.SetActive(false);
+                        LoggerInstance.Msg("Dialogue part finished.");
                     }
                     catch (Exception ex)
                     {
-                        LoggerInstance.Msg($"Error processing part of response: {ex.Message}");
+                        LoggerInstance.Error($"Error processing part of response: {ex.Message}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                LoggerInstance.Msg($"Error in DisplayResponseAndEmotionAsync: {ex.Message}");
+                LoggerInstance.Error($"Error in DisplayResponseAndEmotionAsync: {ex.Message}");
             }
             finally
             {
                 isInputBlocked = false;
             }
         }
+
 
         private void PlayerTalk(string text)
         {
