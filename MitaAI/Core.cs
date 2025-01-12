@@ -19,6 +19,7 @@ using static MelonLoader.InteropSupport;
 using Microsoft.VisualBasic;
 using UnityEngine.Networking;
 using System.Collections;
+using UnityEngine.Playables;
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
 
@@ -30,6 +31,7 @@ namespace MitaAI
         private PlayerPerson Player;
         float distance = 0f;
 
+        Location34_Communication Location34_Communication;
         private GameObject CustomDialog;
 
         private const string ServerAddress = "127.0.0.1";
@@ -71,9 +73,9 @@ namespace MitaAI
                 try
                 {
                     GameObject Trigger = GameObject.Find("World/Quests/Quest 1/Trigger Entry Kitchen");
-                    Location34_Communication Location34_Communication = GameObject.Find("World/Quests/Quest 1/Addon").GetComponent<Location34_Communication>();
+                    Location34_Communication = GameObject.Find("World/Quests/Quest 1/Addon").GetComponent<Location34_Communication>();
                     Location34_Communication.indexSwitchAnimation = 1;
-                    //Trigger.SetActive(false);
+                    Trigger.SetActive(false);
                 }
                 catch
                 {
@@ -196,6 +198,12 @@ namespace MitaAI
         
         private async Task DisplayResponseAndEmotionAsync(string response)
         {
+            // Ожидание, пока patch_to_sound_file не станет непустым
+            while (string.IsNullOrEmpty(patch_to_sound_file))
+            {
+                await Task.Delay(100); // Задержка для предотвращения блокировки основного потока
+            }
+
             GameObject currentDialog = null;
             isInputBlocked = true; // Устанавливаем блокировку
             try
@@ -223,16 +231,18 @@ namespace MitaAI
                     throw;
                 }
 
-                if (!string.IsNullOrEmpty(patch_to_sound_file))
+                AudioClip audioClip = null;
+                if (patch_to_sound_file!="")
                 {
                     try
                     {
                         LoggerInstance.Msg("patch_to_sound_file not null");
-                        await LoadAudioClipFromFileAsync(patch_to_sound_file);
+                        audioClip = await LoadAudioClipFromFileAsync(patch_to_sound_file);
                         patch_to_sound_file = "";
                     }
                     catch (Exception ex)
                     {
+                        LoggerInstance.Msg("patch_to_sound_file is null");
                         LoggerInstance.Msg(ex);
                     }
                     
@@ -241,12 +251,25 @@ namespace MitaAI
 
                 // Разбиваем текст на части
                 List<string> dialogueParts = SplitText(modifiedResponse, maxLength: 50);
+                int delay = Mathf.RoundToInt(audioClip.length * 1000); // Длительность в миллисекундах
+                currentDialog = InstantiateDialog();
+                Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
+                answer.speaker = Mita.gameObject;
+                answer.timeShow = delay;
+                answer.timeSound = delay;
+
+                if (audioClip != null)
+                {
+                    LoggerInstance.Msg("audioClip not null");
+                    answer.LoadVoice(audioClip);
+                    audioClip = null;
+                }
 
 
                 // Перебираем каждую часть и отображаем
                 foreach (string part in dialogueParts)
                 {
-                    int delay = 4000 * part.Length / 50;
+                    delay = 4000 * part.Length / 50;
 
                     if (currentDialog != null)
                     {
@@ -261,16 +284,19 @@ namespace MitaAI
                     currentDialog = InstantiateDialog();
                     if (currentDialog != null)
                     {
-                        Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
+                        answer = currentDialog.GetComponent<Dialogue_3DText>();
                         if (answer == null)
                         {
                             throw new Exception("Dialogue_3DText component not found.");
                         }
 
-                        answer.speaker = Mita.gameObject;
+                        //answer.speaker = Mita.gameObject;
                         answer.textPrint = part;
                         answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
                         answer.timeShow = delay;
+                        answer.speaker = null;
+
+
 
                         currentDialog.SetActive(true);
 
@@ -357,10 +383,12 @@ namespace MitaAI
                         {
                             case "подойти к игроку":
                                 Mita.AiWalkToTarget(Player.transform);
+                                Location34_Communication.indexSwitchAnimation = 1;
                                 break;
 
                             case "телепортироваться к игроку":
                                 Mita.MitaTeleport(Player.transform);
+                                Location34_Communication.indexSwitchAnimation = 1;
                                 break;
 
                             default:
@@ -544,7 +572,7 @@ namespace MitaAI
 
                     
                     patch_to_sound_file = parts[1];
-                    //LoggerInstance.Msg($"patch_to_sound_file from piton  {patch_to_sound_file}");
+                    LoggerInstance.Msg($"patch_to_sound_file from piton  {patch_to_sound_file}");
                     return response;
                 }
                 catch (Exception ex)
@@ -764,7 +792,7 @@ namespace MitaAI
             // Создаем и возвращаем спрайт из текстуры
             return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f));
         }
-        private async Task LoadAudioClipFromFileAsync(string filePath)
+        private async Task<AudioClip> LoadAudioClipFromFileAsync(string filePath)
         {
             try
             {
@@ -774,19 +802,24 @@ namespace MitaAI
                 byte[] fileData = File.ReadAllBytes(filePath);
 
                 // Создаем аудиоклип из байтов
-                AudioClip audioClip = AudioClip.Create("LoadedAudio", fileData.Length, 1, 44100, false);
+                AudioClip audioClip = AudioClip.Create("LoadedAudio", fileData.Length, 2, 44100, false);
                 audioClip.SetData(ConvertByteArrayToFloatArray(fileData), 0);
 
                 // Создаем аудиоисточник и проигрываем звук
-                AudioSource audioSource = new GameObject("AudioSource").AddComponent<AudioSource>();
-                audioSource.clip = audioClip;
-                audioSource.Play();
+                //AudioSource audioSource = new GameObject("AudioSource").AddComponent<AudioSource>();
+                //audioSource.clip = audioClip;
+                //audioSource.Play();
 
-                MelonLoader.MelonLogger.Msg("Audio is playing...");
+                MelonLoader.MelonLogger.Msg("Audio returned");
+                return audioClip;
+                
+
+                
             }
             catch (Exception ex)
             {
                 MelonLoader.MelonLogger.Error("Error loading audio: " + ex.Message);
+                return null;
             }
         }
 
