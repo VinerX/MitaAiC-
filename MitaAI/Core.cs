@@ -27,8 +27,8 @@ namespace MitaAI
 {
     public class MitaCore : MelonMod
     {
-        private MitaPerson Mita;
-        private PlayerPerson Player;
+        public MitaPerson Mita;
+        public PlayerPerson Player;
         float distance = 0f;
 
         Location34_Communication Location34_Communication;
@@ -317,10 +317,10 @@ namespace MitaAI
         private GameObject GetOrCreateDialog()
         {
             // Если нет доступного, создаем новый
-            GameObject newDialog = InstantiateDialog();
+            return InstantiateDialog();
             //dialogPool.Add(newDialog);
-            return newDialog;
 
+/*
             // Ищем неактивный диалог в пуле
             foreach (var dialog in dialogPool)
             {
@@ -343,7 +343,7 @@ namespace MitaAI
                 {
                     GameObject.Destroy(child.gameObject);
                 }
-            }
+            }*/
         }
         // Метод для очистки дочерних объектов
 
@@ -361,6 +361,8 @@ namespace MitaAI
             try
             {
                 string modifiedResponse = await SetEmotionBasedOnResponse(response);
+                modifiedResponse = await SetEmotionBasedOnResponse(response);
+
 
                 AudioClip audioClip = null;
                 int delay = 4000 * response.Length / 50; // Инициализируем delay для общего случая
@@ -405,8 +407,29 @@ namespace MitaAI
                         LoggerInstance.Msg($"Processing dialogue part: {part}");
 
                         // Извлекаем команды и часть текста
-                        (List<string> commands, string MofifiedPart) = await ExtractCommandsAsync(part);
+                        string MofifiedPart = part;
+                        List<string> commands = new List<string>();
+                        try
+                        {
+                            (commands, MofifiedPart) = await ExtractCommandsAsync(part);
+                        }
+                        catch (Exception ex)
+                        {
 
+                            LoggerInstance.Msg("Problem with ExtractCommandsAsync" + ex);
+                        }
+                        
+                        try
+                        {
+                            MofifiedPart = SetFaceStyle(MofifiedPart);
+                            
+                        }
+                        catch (Exception ex)
+                        {
+
+                            LoggerInstance.Msg("Problem with FaceStyle"+ex);
+                        }
+                        
                         // Если есть команды, обрабатываем их
                         if (commands.Count > 0)
                         {
@@ -420,10 +443,11 @@ namespace MitaAI
                                 LoggerInstance.Error($"Error processing commands: {cmdEx.Message}");
                             }
                         }
-
+                        LoggerInstance.Msg("Before delay");
                         // Пересчитываем задержку для текущей части
                         delay = 4000 * MofifiedPart.Length / 50;
 
+                        LoggerInstance.Msg("GetOrCreateDialog");
                         // Создаем или получаем диалоговое окно
                         GameObject currentDialog = GetOrCreateDialog();
                         currentDialog.SetActive(true);
@@ -431,15 +455,16 @@ namespace MitaAI
                         if (answer == null)
                         {
                             LoggerInstance.Error("Dialogue_3DText component not found.");
-                            throw new Exception("Dialogue_3DText component not found.");
+                            //throw new Exception("Dialogue_3DText component not found.");
                         }
 
                         if (Mita?.gameObject == null)
                         {
                             LoggerInstance.Error("Mita or Mita.gameObject is null.");
-                            throw new Exception("Mita or Mita.gameObject is null.");
+                            //throw new Exception("Mita or Mita.gameObject is null.");
                         }
 
+                        LoggerInstance.Msg("answer.textPrint");
                         // Устанавливаем данные для текста
                         answer.textPrint = MofifiedPart;
                         //answer.textPrintNow = MofifiedPart;
@@ -502,7 +527,7 @@ namespace MitaAI
                 }
                 else
                 {
-                    throw new Exception("currentDialog is null.");
+                    LoggerInstance.Msg("currentDialog is null.");
                 }
                 
             }
@@ -658,8 +683,57 @@ namespace MitaAI
                 return (emotions, cleanedResponse);
             });
         }
+        public string SetFaceStyle(string response)
+        {
+            LoggerInstance.Error("33333");
+            // Регулярное выражение для извлечения эмоций
+            string pattern = @"<f>(.*?)</f>";
+            Match match = Regex.Match(response, pattern);
 
-        public static async Task<(List<string> commands, string cleanedResponse)> ExtractCommandsAsync(string response)
+            string faceStyle = string.Empty;
+            string cleanedResponse = Regex.Replace(response, @"<.*?>", ""); // Очищаем от всех тегов
+            LoggerInstance.Error("4444");
+            if (match.Success)
+            {
+                // Если эмоция найдена, устанавливаем её в переменную faceStyle
+                faceStyle = match.Groups[1].Value;
+            }
+            LoggerInstance.Error("55555");
+            try
+            {
+                // Проверка на наличие объекта Mita перед применением эмоции
+                if (Mita == null || Mita.gameObject == null)
+                {
+                    LoggerInstance.Error("Mita object is null or Mita.gameObject is not active.");
+                    return cleanedResponse; // Возвращаем faceStyle и очищенный текст
+                }
+                LoggerInstance.Error("666666");
+                // Устанавливаем лицо, если оно найдено
+                switch (faceStyle)
+                {
+                    case "Смущаться":
+                        //Mita.FaceLayer(1);
+                        break;
+                    case "Маска грусти":
+                        //Mita.FaceLayer(2);
+                        break;
+                    default:
+                        //Mita.FaceLayer(0);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Error($"Problem with FaceStyle: {ex.Message}");
+            }
+
+            // Возвращаем кортеж: лицо и очищенный текст
+            return cleanedResponse;
+        }
+
+
+
+            public static async Task<(List<string> commands, string cleanedResponse)> ExtractCommandsAsync(string response)
         {
             return await Task.Run(() =>
             {
@@ -700,7 +774,7 @@ namespace MitaAI
                 {
                     return string.Empty; // Возвращаем пустой ответ, если не удалось подключиться
                 }
-                getDistance();
+                distance = getDistance();
                 input = $"{input}|||{distance}";
 
                 byte[] messageBytes = Encoding.UTF8.GetBytes(input);
@@ -746,7 +820,7 @@ namespace MitaAI
                     attempt++;
                     if (attempt >= maxRetries)
                     {
-                        //LoggerInstance.Msg($"Max retries reached. Unable to connect to {address}:{port}.");
+                        LoggerInstance.Msg($"Max retries reached. Unable to connect to {address}:{port}.{ex}");
                         return false; // После превышения количества попыток
                     }
                     await Task.Delay(delayBetweenRetries); // Задержка перед повторной попыткой
@@ -967,7 +1041,7 @@ namespace MitaAI
                 // Удаление исходного файла
                 try
                 {
-                    await Task.Delay(100);
+                    await Task.Delay(300);
                     File.Delete(filePath);
                     MelonLoader.MelonLogger.Msg("Original file deleted: " + filePath);
                 }
