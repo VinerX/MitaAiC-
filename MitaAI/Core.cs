@@ -53,6 +53,12 @@ namespace MitaAI
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
 
         {
+            //LoadAnimationClipsFromAssetBundle loadAnimationClips = new LoadAnimationClipsFromAssetBundle();
+            //string result = loadAnimationClips.LoadAnimationClipsContainingMita();
+            //oggerInstance.Msg(result);
+
+            //Test();
+
             CurrentSceneName = sceneName;
             if (CurrentSceneName == "AiHasto")
             {
@@ -84,6 +90,115 @@ namespace MitaAI
                 InitializeGameObjects();
             }
         }
+        private void Test()
+        {
+            LoggerInstance.Msg("Попытка ");
+            try
+            {
+                AnimationClip animationClip = Resources.Load("Assets/AnimationClip/Mita Lolipop") as AnimationClip;
+                LoggerInstance.Msg("Что получилось "+animationClip.ToString());  
+            }
+            catch (Exception e)
+            {
+
+                LoggerInstance.Msg("Провал " + e);
+            }
+            try
+            {
+
+                
+                
+
+                LoggerInstance.Msg("Test Start 1");
+
+                AnimationClip anim = null;
+
+                // Попробуем найти AnimationClip через Resources
+                try
+                {
+                    foreach (var clip in Resources.FindObjectsOfTypeAll<AnimationClip>())
+                    {
+                        if (clip != null && clip.name.Contains("Mita"))
+                        {
+                            anim = clip;
+                            LoggerInstance.Msg($"Found animation clip containing 'Mita': {clip.name}");
+                            break;
+                        }
+                    }
+
+                    if (anim == null)
+                    {
+                        LoggerInstance.Error("No animation clip containing 'Mita' found in Resources.");
+                    }
+                }
+                catch (Exception resEx)
+                {
+                    LoggerInstance.Error($"Error accessing Resources: {resEx}");
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Error($"Unexpected error in Test Start 1: {ex}");
+            }
+
+            LoggerInstance.Msg("Test End 1");
+
+            try
+            {
+                LoggerInstance.Msg("Test Start 2");
+
+                AnimationClip anim = null;
+
+                // Используем рефлексию для поиска AnimationClip
+                try
+                {
+                    Assembly assembly = Assembly.Load("Assembly-CSharp");
+
+                    foreach (Type type in assembly.GetTypes())
+                    {
+                        if (type == typeof(AnimationClip))
+                        {
+                            LoggerInstance.Msg("Found AnimationClip type via reflection.");
+
+                            foreach (var field in type.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+                            {
+                                if (field.FieldType == typeof(AnimationClip))
+                                {
+                                    anim = (AnimationClip)field.GetValue(null);
+
+                                    if (anim != null && anim.name.Contains("Mita"))
+                                    {
+                                        LoggerInstance.Msg($"Found animation clip via reflection: {anim.name}");
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (anim != null)
+                            {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (anim == null)
+                    {
+                        LoggerInstance.Error("No animation clip containing 'Mita' found via reflection.");
+                    }
+                }
+                catch (Exception refEx)
+                {
+                    LoggerInstance.Error($"Error during reflection search: {refEx}");
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Error($"Unexpected error in Test Start 2: {ex}");
+            }
+
+            LoggerInstance.Msg("Test End 2");
+        }
+
 
         private void InitializeGameObjects()
         {
@@ -231,6 +346,9 @@ namespace MitaAI
             }
         }
         // Метод для очистки дочерних объектов
+
+
+
 
         private async Task DisplayResponseAndEmotionAsync(string response)
         {
@@ -845,6 +963,19 @@ namespace MitaAI
                 audioClip.SetData(audioData, 0);
 
                 MelonLoader.MelonLogger.Msg("Audio returned");
+
+                // Удаление исходного файла
+                try
+                {
+                    await Task.Delay(100);
+                    File.Delete(filePath);
+                    MelonLoader.MelonLogger.Msg("Original file deleted: " + filePath);
+                }
+                catch (Exception ex)
+                {
+                    MelonLoader.MelonLogger.Error("Error deleting original file: " + ex.Message);
+                }
+
                 return audioClip;
             }
             catch (Exception ex)
@@ -853,6 +984,7 @@ namespace MitaAI
                 return null;
             }
         }
+
 
         // Нормализация аудиоданных
         private float[] NormalizeAudioData(float[] audioData)
