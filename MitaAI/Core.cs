@@ -801,20 +801,21 @@ namespace MitaAI
                 // Читаем все байты файла
                 byte[] fileData = File.ReadAllBytes(filePath);
 
-                // Создаем аудиоклип из байтов
-                AudioClip audioClip = AudioClip.Create("LoadedAudio", fileData.Length, 2, 44100, false);
-                audioClip.SetData(ConvertByteArrayToFloatArray(fileData), 0);
+                // Конвертируем байты в массив float
+                float[] audioData = ConvertByteArrayToFloatArray(fileData);
 
-                // Создаем аудиоисточник и проигрываем звук
-                //AudioSource audioSource = new GameObject("AudioSource").AddComponent<AudioSource>();
-                //audioSource.clip = audioClip;
-                //audioSource.Play();
+                // Применяем нормализацию
+                audioData = NormalizeAudioData(audioData);
+
+                // Применяем fade-in (0.1 секунды на 44100 Hz)
+                audioData = ApplyFadeIn(audioData, 44100 / 10);
+
+                // Создаем аудиоклип
+                AudioClip audioClip = AudioClip.Create("LoadedAudio", audioData.Length, 2, 44100, false);
+                audioClip.SetData(audioData, 0);
 
                 MelonLoader.MelonLogger.Msg("Audio returned");
                 return audioClip;
-                
-
-                
             }
             catch (Exception ex)
             {
@@ -823,7 +824,39 @@ namespace MitaAI
             }
         }
 
-        // Вспомогательный метод для преобразования байтов в массив с плавающей точкой
+        // Нормализация аудиоданных
+        private float[] NormalizeAudioData(float[] audioData)
+        {
+            float maxAmplitude = 0f;
+            foreach (var sample in audioData)
+            {
+                if (Math.Abs(sample) > maxAmplitude)
+                {
+                    maxAmplitude = Math.Abs(sample);
+                }
+            }
+            if (maxAmplitude > 0)
+            {
+                for (int i = 0; i < audioData.Length; i++)
+                {
+                    audioData[i] /= maxAmplitude;
+                }
+            }
+            return audioData;
+        }
+
+        // Применение fade-in
+        private float[] ApplyFadeIn(float[] audioData, int fadeSamples)
+        {
+            for (int i = 0; i < fadeSamples && i < audioData.Length; i++)
+            {
+                float fadeFactor = (float)i / fadeSamples;
+                audioData[i] *= fadeFactor;
+            }
+            return audioData;
+        }
+
+        // Преобразование байтов в массив float
         private float[] ConvertByteArrayToFloatArray(byte[] byteArray)
         {
             float[] floatArray = new float[byteArray.Length / 2]; // предполагаем, что файл в 16-битах
