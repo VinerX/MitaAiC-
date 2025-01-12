@@ -32,7 +32,9 @@ namespace MitaAI
         float distance = 0f;
 
         Location34_Communication Location34_Communication;
+        
         private GameObject CustomDialog;
+        private GameObject CustomDialogPlayer;
 
         private const string ServerAddress = "127.0.0.1";
         private const int Port = 12345;
@@ -254,6 +256,19 @@ namespace MitaAI
             CustomDialogText.xPrint = 0.413f;
             CustomDialogText.indexString = -1;
 
+            dialogOriginal = world.Find("Quests/Quest 1/Dialogues/Dialogue Player/Dialogue Hello/DPlayer 3");
+            CustomDialogPlayer = GameObject.Instantiate(dialogOriginal.gameObject, world.Find("Quests/Quest 1/Dialogues"));
+            CustomDialogPlayer.name = "Custom Dialogue Player";
+            
+            CustomDialogText = CustomDialogPlayer.GetComponent<Dialogue_3DText>();
+
+            CustomDialogText.nextText = null;
+            CustomDialogText.sizeHeight = 0.0687f;
+            CustomDialogText.sizeSymbol = 0.0014f;
+            CustomDialogText.sizeWidth = 0.75f;
+            CustomDialogText.xPrint = 0.413f;
+            CustomDialogText.indexString = -1;
+            CustomDialogText.showSubtitles = true;
 
         }
 
@@ -588,7 +603,7 @@ namespace MitaAI
               
                 int delay = 4000 * text.Length / 50;
 
-                currentDialog = InstantiateDialog();
+                currentDialog = InstantiateDialog(false);
                 if (currentDialog != null)
                 {
                     Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
@@ -715,7 +730,7 @@ namespace MitaAI
         }
 
 
-        private GameObject InstantiateDialog()
+        private GameObject InstantiateDialog(bool Mita = true)
         {
             Transform world = GameObject.Find("World")?.transform;
             if (world == null)
@@ -723,8 +738,14 @@ namespace MitaAI
                 LoggerInstance.Msg("World object not found.");
                 return null;
             }
-
-            return GameObject.Instantiate(CustomDialog, world.Find("Quests/Quest 1/Dialogues"));
+            if (Mita)
+            {
+                return GameObject.Instantiate(CustomDialog, world.Find("Quests/Quest 1/Dialogues"));
+            }
+            else
+            {
+                return GameObject.Instantiate(CustomDialogPlayer, world.Find("Quests/Quest 1/Dialogues"));
+            }
         }
 
         private async Task<string> SetEmotionBasedOnResponse(string response)
