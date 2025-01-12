@@ -195,44 +195,40 @@ namespace MitaAI
             }
             
         }
-        
-        private async Task DisplayResponseAndEmotionAsync(string response)
+
+        // Список для хранения созданных диалогов
+        private List<GameObject> dialogPool = new List<GameObject>();
+
+        private GameObject GetOrCreateDialog()
         {
-            // Ожидание, пока patch_to_sound_file не станет непустым
-            while (string.IsNullOrEmpty(patch_to_sound_file))
+            // Ищем неактивный диалог в пуле
+            foreach (var dialog in dialogPool)
             {
-                await Task.Delay(100); // Задержка для предотвращения блокировки основного потока
+                if (!dialog.activeSelf)
+                {
+                    return dialog;
+                }
             }
 
-            GameObject currentDialog = null;
-            isInputBlocked = true; // Устанавливаем блокировку
+            // Если нет доступного, создаем новый
+            GameObject newDialog = InstantiateDialog();
+            dialogPool.Add(newDialog);
+            return newDialog;
+        }
+        private async Task DisplayResponseAndEmotionAsync(string response)
+        {
+            while (string.IsNullOrEmpty(patch_to_sound_file))
+            {
+                await Task.Delay(100);
+            }
+
+            isInputBlocked = true;
             try
             {
-                
-
-                // Изменение response в зависимости от эмоций
                 string modifiedResponse = await SetEmotionBasedOnResponse(response);
 
-                // Извлечение команд и их выполнение
-                (List<string> commands, modifiedResponse) = await ExtractCommandsAsync(modifiedResponse);
-
-                if (commands.Count > 0)
-                {
-                    ProcessCommands(commands); // Сразу обрабатываем команды
-                }
-
-                try
-                {
-                    //BlockInputFieldAsync(4000 * response.Length / 50); // Явно игнорируем результат
-                }
-                catch (Exception)
-                {
-
-                    throw;
-                }
-
                 AudioClip audioClip = null;
-                if (patch_to_sound_file!="")
+                if (!string.IsNullOrEmpty(patch_to_sound_file))
                 {
                     try
                     {
@@ -242,70 +238,58 @@ namespace MitaAI
                     }
                     catch (Exception ex)
                     {
-                        LoggerInstance.Msg("patch_to_sound_file is null");
-                        LoggerInstance.Msg(ex);
+                        LoggerInstance.Msg($"Error loading audio file: {ex.Message}");
                     }
-                    
                 }
 
-
-                // Разбиваем текст на части
                 List<string> dialogueParts = SplitText(modifiedResponse, maxLength: 50);
-                int delay = Mathf.RoundToInt(audioClip.length * 1000); // Длительность в миллисекундах
-                currentDialog = InstantiateDialog();
-                Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
-                answer.speaker = Mita.gameObject;
-                answer.timeShow = delay;
-                answer.timeSound = delay;
 
-                if (audioClip != null)
-                {
-                    LoggerInstance.Msg("audioClip not null");
-                    answer.LoadVoice(audioClip);
-                    audioClip = null;
-                }
-
-
-                // Перебираем каждую часть и отображаем
                 foreach (string part in dialogueParts)
                 {
-                    delay = 4000 * part.Length / 50;
-
-                    if (currentDialog != null)
+                    try
                     {
-                        GameObject_Destroy delete = currentDialog.AddComponent<GameObject_Destroy>();
-                        delete.timeDestroy = 3f;
-                        delete.des = true;
-                        delete.destroy();
-                    
-                        currentDialog = null;
-                    }
+                        (List<string> commands, string MofifiedPart) = await ExtractCommandsAsync(part);
 
-                    currentDialog = InstantiateDialog();
-                    if (currentDialog != null)
-                    {
-                        answer = currentDialog.GetComponent<Dialogue_3DText>();
+                        if (commands.Count > 0)
+                        {
+                            ProcessCommands(commands);
+                        }
+
+                        int delay = 4000 * MofifiedPart.Length / 50;
+
+                        GameObject currentDialog = GetOrCreateDialog();
+                        currentDialog.SetActive(true);
+
+                        Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
                         if (answer == null)
                         {
                             throw new Exception("Dialogue_3DText component not found.");
                         }
 
-                        //answer.speaker = Mita.gameObject;
-                        answer.textPrint = part;
+                        if (Mita?.gameObject == null)
+                        {
+                            throw new Exception("Mita or Mita.gameObject is null.");
+                        }
+
+                        answer.textPrint = MofifiedPart;
                         answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
                         answer.timeShow = delay;
-                        answer.speaker = null;
+                        answer.speaker = Mita.gameObject;
 
-
-
-                        currentDialog.SetActive(true);
+                        if (audioClip != null)
+                        {
+                            answer.LoadVoice(audioClip);
+                            audioClip = null;
+                        }
 
                         MitaBoringtimer = 0f;
                         await Task.Delay(delay);
+
+                        currentDialog.SetActive(false);
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        throw new Exception("currentDialog is null.");
+                        LoggerInstance.Msg($"Error processing part of response: {ex.Message}");
                     }
                 }
             }
@@ -315,13 +299,7 @@ namespace MitaAI
             }
             finally
             {
-                if (currentDialog != null) { 
-                isInputBlocked = false; // Убираем блокировку
-                GameObject_Destroy delete = currentDialog.AddComponent<GameObject_Destroy>();
-                    delete.timeDestroy = 3f;
-                    delete.des = true;
-                    delete.destroy();
-                }
+                isInputBlocked = false;
             }
         }
 
@@ -572,7 +550,7 @@ namespace MitaAI
 
                     
                     patch_to_sound_file = parts[1];
-                    LoggerInstance.Msg($"patch_to_sound_file from piton  {patch_to_sound_file}");
+                    //LoggerInstance.Msg($"patch_to_sound_file from piton  {patch_to_sound_file}");
                     return response;
                 }
                 catch (Exception ex)
