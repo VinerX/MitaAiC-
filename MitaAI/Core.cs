@@ -206,6 +206,7 @@ namespace MitaAI
             {
                 if (!dialog.activeSelf)
                 {
+                    ClearChildren(dialog.gameObject);
                     return dialog;
                 }
             }
@@ -214,7 +215,18 @@ namespace MitaAI
             GameObject newDialog = InstantiateDialog();
             dialogPool.Add(newDialog);
             return newDialog;
+
+            // Метод для очистки дочерних объектов
+            void ClearChildren(GameObject parent)
+            {
+                foreach (Transform child in parent.transform)
+                {
+                    GameObject.Destroy(child.gameObject);
+                }
+            }
         }
+        // Метод для очистки дочерних объектов
+
         private async Task DisplayResponseAndEmotionAsync(string response)
         {
             while (string.IsNullOrEmpty(patch_to_sound_file))
