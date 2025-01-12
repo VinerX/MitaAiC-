@@ -28,7 +28,7 @@ namespace MitaAI
     public class MitaCore : MelonMod
     {
         public MitaPerson Mita;
-        public PlayerPerson Player;
+        public PlayerPerson playerPerson;
         float distance = 0f;
 
         Location34_Communication Location34_Communication;
@@ -79,9 +79,14 @@ namespace MitaAI
                 try
                 {
                     GameObject Trigger = GameObject.Find("World/Quests/Quest 1/Trigger Entry Kitchen");
+                    GameObject Location34_CommunicationObject = GameObject.Find("World/Quests/Quest 1/Addon");
                     Location34_Communication = GameObject.Find("World/Quests/Quest 1/Addon").GetComponent<Location34_Communication>();
                     Location34_Communication.indexSwitchAnimation = 1;
+                    Location34_Communication.play = true;
+                    Location34_Communication.mitaCanWalk = true;
                     Trigger.SetActive(false);
+
+                    CollectChildObjects(Location34_CommunicationObject);
                 }
                 catch
                 {
@@ -204,23 +209,16 @@ namespace MitaAI
         {
             Mita = GameObject.Find("Mita")?.GetComponent<MitaPerson>();
 
-            try {
-                //AnimationClip animation = AnimationClip.;
-            }
-            catch (Exception)
-            {
 
-            }
-            LoggerInstance.Msg("Animation 'Mita Idle' not found.");
 
 
             //Mita.gameObject.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled = true;
 
-            Player = GameObject.Find("Person")?.GetComponent<PlayerPerson>();
+            playerPerson = GameObject.Find("Person")?.GetComponent<PlayerPerson>();
             LoggerInstance.Msg(Mita != null ? "Mita found!" : "Mita not found.");
-            LoggerInstance.Msg(Player != null ? "Player found!" : "Player not found.");
+            LoggerInstance.Msg(playerPerson != null ? "Player found!" : "Player not found.");
 
-            if (Mita == null || Player == null) return;
+            if (Mita == null || playerPerson == null) return;
 
             Transform world = GameObject.Find("World")?.transform;
             if (world == null)
@@ -259,12 +257,15 @@ namespace MitaAI
 
         }
 
+        bool FirstTime = true;
         public override async void OnFixedUpdate()
         {
             if ( !RequiredSceneNames.Contains(CurrentSceneName) ) return;
 
+           
             timer += Time.fixedDeltaTime;
             MitaBoringtimer += Time.fixedDeltaTime;
+
 
             if (timer >= Interval)
             {
@@ -272,13 +273,20 @@ namespace MitaAI
                 await HandleDialogueAsync();
             }
 
+            if ( getDistance()<0.75f)
+            {
+                Mita.AiShraplyStop();
+            }
+
             base.OnFixedUpdate();
         }
 
         float getDistance()
         {
-            return Vector3.Distance(Mita.transform.position, Player.transform.position);
+            if (Mita == null || playerPerson == null) { return 0f; }
+            return Vector3.Distance(Mita.transform.GetChild(0).position, playerPerson.transform.position);
         }
+
 
         private async Task HandleDialogueAsync()
         {
@@ -310,6 +318,79 @@ namespace MitaAI
             }
             
         }
+        // Глобальный список для хранения дочерних объектов
+        List<GameObject> globalChildObjects = new List<GameObject>();
+
+        // Функция для получения дочерних объектов и добавления их в глобальный список
+        void CollectChildObjects(GameObject parentObject)
+        {
+            // Проверяем, что объект не null
+            if (parentObject == null)
+            {
+                LoggerInstance.Error("Parent object is null!");
+                return;
+            }
+
+            // Получаем Transform родительского объекта
+            Transform parentTransform = parentObject.transform;
+
+            // Перебираем всех детей
+            for (int i = 0; i < parentTransform.childCount; i++)
+            {
+                Transform childTransform = parentTransform.GetChild(i);
+                if (childTransform != null)
+                {
+                    // Добавляем дочерний объект в глобальный список
+                    globalChildObjects.Add(childTransform.gameObject);
+                    LoggerInstance.Msg($"Child added: {childTransform.name}");
+                }
+            }
+
+            // Выводим общее количество детей
+            LoggerInstance.Msg($"Total children collected: {globalChildObjects.Count}");
+        }
+        public Transform GetRandomLoc()
+        {
+            LoggerInstance.Msg("Before try Tring GetRandomLoc");
+            try
+            {
+                LoggerInstance.Msg("Tring GetRandomLoc");
+                // Проверяем, что список не пустой
+                if (globalChildObjects == null || globalChildObjects.Count == 0)
+                {
+                    LoggerInstance.Error("globalChildObjects is null or empty!");
+                    return null; // Возвращаем null, если список пуст
+                }
+
+                // Генерируем случайный индекс
+                int randomIndex = UnityEngine.Random.Range(0, globalChildObjects.Count);
+
+                // Получаем случайный объект по индексу
+                GameObject randomObject = globalChildObjects[randomIndex];
+
+                // Проверяем, что объект действительно существует и имеет компонент Transform
+                if (randomObject == null)
+                {
+                    LoggerInstance.Error("Random object is null!");
+                    return null; // Возвращаем null, если объект не найден
+                }
+
+                // Логируем имя объекта
+                LoggerInstance.Msg($"Random object selected: {randomObject.name}");
+
+                // Возвращаем компонент Transform
+                return randomObject.transform;
+            }
+            catch (Exception)
+            {
+                LoggerInstance.Msg("Error with random loc");
+                return null;
+            }
+            
+        }
+
+
+
 
         // Список для хранения созданных диалогов
         private List<GameObject> dialogPool = new List<GameObject>();
@@ -349,7 +430,6 @@ namespace MitaAI
 
 
 
-
         private async Task DisplayResponseAndEmotionAsync(string response)
         {
             while (string.IsNullOrEmpty(patch_to_sound_file))
@@ -361,6 +441,7 @@ namespace MitaAI
             try
             {
                 string modifiedResponse = await SetEmotionBasedOnResponse(response);
+                modifiedResponse = SetMovementStyle(response);
                 modifiedResponse = await SetEmotionBasedOnResponse(response);
 
 
@@ -421,7 +502,7 @@ namespace MitaAI
                         
                         try
                         {
-                            MofifiedPart = SetFaceStyle(MofifiedPart);
+                            MofifiedPart = await SetFaceStyle(MofifiedPart);
                             
                         }
                         catch (Exception ex)
@@ -516,7 +597,7 @@ namespace MitaAI
                         throw new Exception("Dialogue_3DText component not found.");
                     }
 
-                    answer.speaker = Player.gameObject;
+                    answer.speaker = playerPerson.gameObject;
                     answer.textPrint = text;
                     answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Player;
                     answer.timeShow = delay;
@@ -555,12 +636,21 @@ namespace MitaAI
                         switch (command.ToLower())
                         {
                             case "подойти к игроку":
-                                Mita.AiWalkToTarget(Player.transform);
+                                Mita.AiWalkToTarget(playerPerson.transform);
+                                Location34_Communication.indexSwitchAnimation = 1;
+                                break;
+
+                            case "подойти к случайной точке":
+                                Mita.AiWalkToTarget( GetRandomLoc() );
+                                Location34_Communication.indexSwitchAnimation = 1;
+                                break;
+                            case "телепортироваться к случайной точке":
+                                Mita.MitaTeleport( GetRandomLoc() );
                                 Location34_Communication.indexSwitchAnimation = 1;
                                 break;
 
                             case "телепортироваться к игроку":
-                                Mita.MitaTeleport(Player.transform);
+                                Mita.MitaTeleport(playerPerson.transform);
                                 Location34_Communication.indexSwitchAnimation = 1;
                                 break;
 
@@ -683,7 +773,7 @@ namespace MitaAI
                 return (emotions, cleanedResponse);
             });
         }
-        public string SetFaceStyle(string response)
+        public async Task<string> SetFaceStyle(string response)
         {
             LoggerInstance.Error("33333");
             // Регулярное выражение для извлечения эмоций
@@ -707,17 +797,20 @@ namespace MitaAI
                     LoggerInstance.Error("Mita object is null or Mita.gameObject is not active.");
                     return cleanedResponse; // Возвращаем faceStyle и очищенный текст
                 }
-                LoggerInstance.Error("666666");
+                LoggerInstance.Error("55555");
                 // Устанавливаем лицо, если оно найдено
                 switch (faceStyle)
                 {
                     case "Смущаться":
+                        //Mita.FaceColorUpdate();
                         //Mita.FaceLayer(1);
                         break;
                     case "Маска грусти":
+                        //Mita.FaceColorUpdate();
                         //Mita.FaceLayer(2);
                         break;
                     default:
+                        //Mita.FaceColorUpdate();
                         //Mita.FaceLayer(0);
                         break;
                 }
@@ -731,9 +824,54 @@ namespace MitaAI
             return cleanedResponse;
         }
 
+        public string SetMovementStyle(string response)
+        {
+            // Регулярное выражение для извлечения эмоций
+            string pattern = @"<m>(.*?)</m>";
+            Match match = Regex.Match(response, pattern);
 
+            string MovementStyle = string.Empty;
+            string cleanedResponse = Regex.Replace(response, @"<.*?>", ""); // Очищаем от всех тегов
 
-            public static async Task<(List<string> commands, string cleanedResponse)> ExtractCommandsAsync(string response)
+            if (match.Success)
+            {
+                // Если эмоция найдена, устанавливаем её в переменную faceStyle
+                MovementStyle = match.Groups[1].Value;
+            }
+            try
+            {
+                // Проверка на наличие объекта Mita перед применением эмоции
+                if (Mita == null || Mita.gameObject == null)
+                {
+                    LoggerInstance.Error("Mita object is null or Mita.gameObject is not active.");
+                    return cleanedResponse; // Возвращаем faceStyle и очищенный текст
+                }
+                // Устанавливаем лицо, если оно найдено
+                switch (MovementStyle)
+                {
+                    case "Следовать рядом с игроком":
+                        Location34_Communication.ActivationCanWalk(true);
+
+                        break;
+                    case "Стоять на месте":
+                        Location34_Communication.ActivationCanWalk(false);
+                        break;
+                    default:
+                        //Mita.FaceColorUpdate();
+                        //Mita.FaceLayer(0);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Error($"Problem with FaceStyle: {ex.Message}");
+            }
+
+            // Возвращаем кортеж: лицо и очищенный текст
+            return cleanedResponse;
+        }
+
+        public static async Task<(List<string> commands, string cleanedResponse)> ExtractCommandsAsync(string response)
         {
             return await Task.Run(() =>
             {
@@ -774,6 +912,7 @@ namespace MitaAI
                 {
                     return string.Empty; // Возвращаем пустой ответ, если не удалось подключиться
                 }
+                
                 distance = getDistance();
                 input = $"{input}|||{distance}";
 
