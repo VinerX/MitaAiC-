@@ -71,7 +71,7 @@ namespace MitaAI
             {
                 Menu MainMenu = GameObject.Find("MenuGame").GetComponent<Menu>();
                 MainMenu.Alternative();
-                //MainMenu.ButtonLoadScene("Scene 4 - StartSecret");
+                MainMenu.ButtonLoadScene("Scene 4 - StartSecret");
                 //MainMenu.ButtonLoadScene("Scene 3 - WeTogether");
 
             }
@@ -205,8 +205,41 @@ namespace MitaAI
 
             LoggerInstance.Msg("Test End 2");
         }
+        
+        
+        int roomIDPlayer = -1;
+        int roomIDMita = -1;
+        // Первая функция, которая принимает PlayerMove
+        public void CheckRoom(PlayerMove playerMove)
+        {
+            if (playerMove == null)
+            {
+                return;
+            }
 
+            // Передаем трансформ игрока во вторую функцию
+            roomIDPlayer = GetRoomID(playerMove.transform);
+        }
 
+        // Вторая функция, которая принимает Transform и возвращает roomID
+        public int GetRoomID(Transform playerTransform)
+        {
+            if (playerTransform == null)
+            {
+                return -1;
+            }
+
+            var posX = playerTransform.position.x;
+            var posZ = playerTransform.position.z;
+
+            // Логика определения комнаты
+            if (posX > 5.3000002f && posZ >= 0) return 0; // Kitchen
+            else if (posX > 5.3000002f && posZ < 0) return 2; // Bedroom
+            else if (posX > -4 && posX < 5) return 1; // Main
+            else if (posX > -11.0f && posX < -4.3000002f) return 3; // Toilet 
+
+            return -1; // Если не нашли подходящей комнаты
+        }
         private void InitializeGameObjects()
         {
             Mita = GameObject.Find("Mita")?.GetComponent<MitaPerson>();
@@ -935,7 +968,10 @@ namespace MitaAI
                 }
                 
                 distance = getDistance();
-                input = $"{input}|||{distance}";
+                roomIDPlayer = GetRoomID(playerPerson.transform);
+                roomIDMita = GetRoomID(Mita.transform);
+                LoggerInstance.Msg($"{roomIDPlayer} {roomIDMita}");
+                input = $"{input}|||{distance}|||{roomIDPlayer}|||{roomIDMita}";
 
                 byte[] messageBytes = Encoding.UTF8.GetBytes(input);
                 await clientSocket.SendAsync(messageBytes, SocketFlags.None);
