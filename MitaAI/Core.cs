@@ -71,7 +71,7 @@ namespace MitaAI
             {
                 Menu MainMenu = GameObject.Find("MenuGame").GetComponent<Menu>();
                 MainMenu.Alternative();
-                MainMenu.ButtonLoadScene("Scene 4 - StartSecret");
+                //MainMenu.ButtonLoadScene("Scene 4 - StartSecret");
                 //MainMenu.ButtonLoadScene("Scene 3 - WeTogether");
 
             }
