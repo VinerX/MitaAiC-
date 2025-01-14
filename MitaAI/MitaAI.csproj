@@ -317,6 +317,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<Compile Include="UnityMainThreadDispatcher.cs" />
 		<Compile Include="Core.cs" />
 	</ItemGroup>
 
