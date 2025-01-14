@@ -32,7 +32,10 @@ namespace MitaAI
         float distance = 0f;
 
         Location34_Communication Location34_Communication;
-        
+
+        Transform worldHouse;
+        Transform worldBasement;
+
         private GameObject CustomDialog;
         private GameObject CustomDialogPlayer;
 
@@ -52,6 +55,111 @@ namespace MitaAI
         List<string> RequiredSceneNames = new List<string> { "Scene 4 - StartSecret", "Scene 3 - WeTogether" };
         string CurrentSceneName;
 
+ 
+        private void LoadSceneAdditive(string sceneName)
+        {
+            LoggerInstance.Msg($"Loading scene: {sceneName}");
+            try
+            {
+                SceneManager.LoadScene(sceneName, LoadSceneMode.Additive);
+                LoggerInstance.Msg($"Scene {sceneName} loaded.");
+            }
+            catch (System.Exception ex)
+            {
+                LoggerInstance.Error($"Error loading scene {sceneName}: {ex.Message}");
+            }
+        }
+        private void UnloadScene(string sceneName)
+        {
+            LoggerInstance.Msg($"Unloading scene: {sceneName}");
+            try
+            {
+                SceneManager.UnloadSceneAsync(sceneName);
+                LoggerInstance.Msg($"Scene {sceneName} unloaded.");
+            }
+            catch (System.Exception ex)
+            {
+                LoggerInstance.Error($"Error unloading scene {sceneName}: {ex.Message}");
+            }
+        }
+
+        public void AddBasement()
+        {
+            string sceneToLoad = "Scene 6 - BasementFirst";
+            string knifePath = "Quests/Quest2 HideAndSeek/Animation Killer/Mita/MitaPerson Mita/Armature/Hips/Spine/Chest/Right shoulder/Right arm/Right elbow/Right wrist/Right item/Knife";
+            string objectPath = "World";
+
+            // Запускаем корутину для ожидания загрузки сцены
+            MelonCoroutines.Start(WaitForSceneAndInstantiate(sceneToLoad, objectPath, knifePath));
+        }
+
+        private IEnumerator WaitForSceneAndInstantiate(string sceneToLoad, string objectPath, string knifePath)
+        {
+            // Загружаем сцену
+            MelonLogger.Msg($"Loading scene: {sceneToLoad}");
+            SceneManager.LoadScene(sceneToLoad, LoadSceneMode.Additive);
+
+            // Ожидание завершения загрузки сцены
+            Scene scene;
+            do
+            {
+                scene = SceneManager.GetSceneByName(sceneToLoad);
+                yield return null; // Ждем следующий кадр
+            } while (!scene.isLoaded);
+
+            MelonLogger.Msg($"Scene {sceneToLoad} loaded.");
+
+            // Находим объект в загруженной сцене
+            worldBasement = FindObjectInScene(scene.name, objectPath);
+            if (worldBasement == null)
+            {
+                MelonLogger.Msg("World object not found.");
+                yield break; // Прерываем выполнение, если объект не найден
+            }
+
+            MelonLogger.Msg($"Object found: {worldBasement.name}");
+
+            // Находим нож
+            Transform knifeTransform = worldBasement.Find(knifePath);
+            if (knifeTransform == null)
+            {
+                MelonLogger.Msg("Knife object not found.");
+                yield break;
+            }
+
+            GameObject knife = knifeTransform.gameObject;
+
+            // Перемещаем нож к Mita
+            GameObject.Instantiate(knife, Mita.transform);
+            MelonLogger.Msg("Knife instantiated on Mita.");
+        }
+
+        public static Transform FindObjectInScene(string sceneName, string objectPath)
+        {
+            // Получаем сцену по имени
+            Scene scene = SceneManager.GetSceneByName(sceneName);
+
+            // Проверяем, загружена ли сцена
+            if (!scene.IsValid() || !scene.isLoaded)
+            {
+                MelonLoader.MelonLogger.Msg($"Scene {sceneName} not loaded or broken");
+                return null;
+            }
+
+            // Получаем корневые объекты сцены
+            var rootObjects = scene.GetRootGameObjects();
+            foreach (var rootObject in rootObjects)
+            {
+                MelonLogger.Msg(rootObject.name);
+                if (rootObject.name == "World")
+                {
+                    return rootObject.transform;
+                }
+            }
+
+            MelonLoader.MelonLogger.Msg($" {objectPath} not found in {sceneName}.");
+            return null;
+        }
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
 
         {
@@ -255,20 +363,20 @@ namespace MitaAI
 
             if (Mita == null || playerPerson == null) return;
 
-            Transform world = GameObject.Find("World")?.transform;
-            if (world == null)
+            worldHouse = GameObject.Find("World")?.transform;
+            if (worldHouse == null)
             {
                 LoggerInstance.Msg("World object not found.");
 
             }
 
 
-            Transform dialogOriginal = world.Find("Quests/Quest 1/Dialogues/Dialogue Mita/Dialogue Finish Aihastion/DMita 2");
+            Transform dialogOriginal = worldHouse.Find("Quests/Quest 1/Dialogues/Dialogue Mita/Dialogue Finish Aihastion/DMita 2");
 
             if (dialogOriginal == null)
             {
                 LoggerInstance.Msg("Target object 'DMita 2' not found.");
-                dialogOriginal = world.Find("Quests/Quest 1 Start/3D Text 5");
+                dialogOriginal = worldHouse.Find("Quests/Quest 1 Start/3D Text 5");
 
                 if (dialogOriginal == null)
                 {
@@ -278,7 +386,7 @@ namespace MitaAI
 
             }
 
-            CustomDialog = GameObject.Instantiate(dialogOriginal.gameObject, world.Find("Quests/Quest 1/Dialogues"));
+            CustomDialog = GameObject.Instantiate(dialogOriginal.gameObject, worldHouse.Find("Quests/Quest 1/Dialogues"));
             CustomDialog.name = "Custom Dialogue";
             Dialogue_3DText CustomDialogText = CustomDialog.GetComponent<Dialogue_3DText>();
             
@@ -289,8 +397,8 @@ namespace MitaAI
             CustomDialogText.xPrint = 0.413f;
             CustomDialogText.indexString = -1;
 
-            dialogOriginal = world.Find("Quests/Quest 1/Dialogues/Dialogue Player/Dialogue Hello/DPlayer 3");
-            CustomDialogPlayer = GameObject.Instantiate(dialogOriginal.gameObject, world.Find("Quests/Quest 1/Dialogues"));
+            dialogOriginal = worldHouse.Find("Quests/Quest 1/Dialogues/Dialogue Player/Dialogue Hello/DPlayer 3");
+            CustomDialogPlayer = GameObject.Instantiate(dialogOriginal.gameObject, worldHouse.Find("Quests/Quest 1/Dialogues"));
             CustomDialogPlayer.name = "Custom Dialogue Player";
             
             CustomDialogText = CustomDialogPlayer.GetComponent<Dialogue_3DText>();
@@ -303,6 +411,8 @@ namespace MitaAI
             CustomDialogText.indexString = -1;
             CustomDialogText.showSubtitles = true;
 
+
+            AddBasement();
         }
 
         bool FirstTime = true;
