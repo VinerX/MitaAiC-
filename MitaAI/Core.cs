@@ -56,7 +56,7 @@ namespace MitaAI
         List<string> RequiredSceneNames = new List<string> { "Scene 4 - StartSecret", "Scene 3 - WeTogether" };
         string CurrentSceneName;
 
-        List<string> AddictiveScenes = new List<string>();
+        private HashSet<string> additiveLoadedScenes = new HashSet<string>();
         private bool AllLoaded = false;
 
 
@@ -67,6 +67,7 @@ namespace MitaAI
             string objectPath = "World";
 
             // Запускаем корутину для ожидания загрузки сцены
+            additiveLoadedScenes.Add( sceneToLoad );
             MelonCoroutines.Start(WaitForSceneAndInstantiate(sceneToLoad, objectPath, knifePath));
         }
 
@@ -74,7 +75,7 @@ namespace MitaAI
         {
             // Загружаем сцену
             MelonLogger.Msg($"Loading scene: {sceneToLoad}");
-            AddictiveScenes.Append( sceneToLoad );
+            additiveLoadedScenes.Add( sceneToLoad );
             SceneManager.LoadScene(sceneToLoad, LoadSceneMode.Additive);
 
             // Ожидание завершения загрузки сцены
@@ -144,10 +145,14 @@ namespace MitaAI
 ;           
 
             LoggerInstance.Msg("Scene loaded "+ sceneName);
-            if (!AddictiveScenes.Contains(sceneName))
+            if ( !additiveLoadedScenes.Contains(sceneName) )
             {
+                LoggerInstance.Msg("Scene loaded not addictive" + sceneName);
                 CurrentSceneName = sceneName;
             }
+            else{
+                LoggerInstance.Msg("Scene loaded addictive!!! " + sceneName);
+                return; }
             
 
             if (CurrentSceneName == "AiHasto")
@@ -315,9 +320,10 @@ namespace MitaAI
         bool FirstTime = true;
         public override async void OnFixedUpdate()
         {
-           
-            if ( CurrentSceneName != "Scene 4 - StartSecret") { return; };
 
+            //LoggerInstance.Msg("1"+ CurrentSceneName);
+            if ( CurrentSceneName != "Scene 4 - StartSecret") { return; };
+            //LoggerInstance.Msg("2" + CurrentSceneName);
             if ( !AllLoaded ) { return;  };
 
             timer += Time.fixedDeltaTime;
