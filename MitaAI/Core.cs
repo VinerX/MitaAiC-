@@ -20,6 +20,7 @@ using Microsoft.VisualBasic;
 using UnityEngine.Networking;
 using System.Collections;
 using UnityEngine.Playables;
+using System.Linq;
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
 
@@ -55,33 +56,9 @@ namespace MitaAI
         List<string> RequiredSceneNames = new List<string> { "Scene 4 - StartSecret", "Scene 3 - WeTogether" };
         string CurrentSceneName;
 
- 
-        private void LoadSceneAdditive(string sceneName)
-        {
-            LoggerInstance.Msg($"Loading scene: {sceneName}");
-            try
-            {
-                SceneManager.LoadScene(sceneName, LoadSceneMode.Additive);
-                LoggerInstance.Msg($"Scene {sceneName} loaded.");
-            }
-            catch (System.Exception ex)
-            {
-                LoggerInstance.Error($"Error loading scene {sceneName}: {ex.Message}");
-            }
-        }
-        private void UnloadScene(string sceneName)
-        {
-            LoggerInstance.Msg($"Unloading scene: {sceneName}");
-            try
-            {
-                SceneManager.UnloadSceneAsync(sceneName);
-                LoggerInstance.Msg($"Scene {sceneName} unloaded.");
-            }
-            catch (System.Exception ex)
-            {
-                LoggerInstance.Error($"Error unloading scene {sceneName}: {ex.Message}");
-            }
-        }
+        List<string> AddictiveScenes = new List<string>();
+        private bool AllLoaded = false;
+
 
         public void AddBasement()
         {
@@ -97,6 +74,7 @@ namespace MitaAI
         {
             // Загружаем сцену
             MelonLogger.Msg($"Loading scene: {sceneToLoad}");
+            AddictiveScenes.Append( sceneToLoad );
             SceneManager.LoadScene(sceneToLoad, LoadSceneMode.Additive);
 
             // Ожидание завершения загрузки сцены
@@ -163,13 +141,15 @@ namespace MitaAI
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
 
         {
-            //LoadAnimationClipsFromAssetBundle loadAnimationClips = new LoadAnimationClipsFromAssetBundle();
-            //string result = loadAnimationClips.LoadAnimationClipsContainingMita();
-            //oggerInstance.Msg(result);
+;           
 
-            //Test();
+            LoggerInstance.Msg("Scene loaded "+ sceneName);
+            if (!AddictiveScenes.Contains(sceneName))
+            {
+                CurrentSceneName = sceneName;
+            }
+            
 
-            CurrentSceneName = sceneName;
             if (CurrentSceneName == "AiHasto")
             {
                 //GameObject GameObject = GameObject.Find("MenuGame")>
@@ -205,115 +185,6 @@ namespace MitaAI
                 InitializeGameObjects();
             }
         }
-        private void Test()
-        {
-            LoggerInstance.Msg("Попытка ");
-            try
-            {
-                AnimationClip animationClip = Resources.Load("Assets/AnimationClip/Mita Lolipop") as AnimationClip;
-                LoggerInstance.Msg("Что получилось "+animationClip.ToString());  
-            }
-            catch (Exception e)
-            {
-
-                LoggerInstance.Msg("Провал " + e);
-            }
-            try
-            {
-
-                
-                
-
-                LoggerInstance.Msg("Test Start 1");
-
-                AnimationClip anim = null;
-
-                // Попробуем найти AnimationClip через Resources
-                try
-                {
-                    foreach (var clip in Resources.FindObjectsOfTypeAll<AnimationClip>())
-                    {
-                        if (clip != null && clip.name.Contains("Mita"))
-                        {
-                            anim = clip;
-                            LoggerInstance.Msg($"Found animation clip containing 'Mita': {clip.name}");
-                            break;
-                        }
-                    }
-
-                    if (anim == null)
-                    {
-                        LoggerInstance.Error("No animation clip containing 'Mita' found in Resources.");
-                    }
-                }
-                catch (Exception resEx)
-                {
-                    LoggerInstance.Error($"Error accessing Resources: {resEx}");
-                }
-            }
-            catch (Exception ex)
-            {
-                LoggerInstance.Error($"Unexpected error in Test Start 1: {ex}");
-            }
-
-            LoggerInstance.Msg("Test End 1");
-
-            try
-            {
-                LoggerInstance.Msg("Test Start 2");
-
-                AnimationClip anim = null;
-
-                // Используем рефлексию для поиска AnimationClip
-                try
-                {
-                    Assembly assembly = Assembly.Load("Assembly-CSharp");
-
-                    foreach (Type type in assembly.GetTypes())
-                    {
-                        if (type == typeof(AnimationClip))
-                        {
-                            LoggerInstance.Msg("Found AnimationClip type via reflection.");
-
-                            foreach (var field in type.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
-                            {
-                                if (field.FieldType == typeof(AnimationClip))
-                                {
-                                    anim = (AnimationClip)field.GetValue(null);
-
-                                    if (anim != null && anim.name.Contains("Mita"))
-                                    {
-                                        LoggerInstance.Msg($"Found animation clip via reflection: {anim.name}");
-                                        break;
-                                    }
-                                }
-                            }
-
-                            if (anim != null)
-                            {
-                                break;
-                            }
-                        }
-                    }
-
-                    if (anim == null)
-                    {
-                        LoggerInstance.Error("No animation clip containing 'Mita' found via reflection.");
-                    }
-                }
-                catch (Exception refEx)
-                {
-                    LoggerInstance.Error($"Error during reflection search: {refEx}");
-                }
-            }
-            catch (Exception ex)
-            {
-                LoggerInstance.Error($"Unexpected error in Test Start 2: {ex}");
-            }
-
-            LoggerInstance.Msg("Test End 2");
-        }
-        
         
         int roomIDPlayer = -1;
         int roomIDMita = -1;
@@ -364,6 +235,8 @@ namespace MitaAI
             if (Mita == null || playerPerson == null) return;
 
             worldHouse = GameObject.Find("World")?.transform;
+            World worldSettings = worldHouse.gameObject.GetComponent<World>();
+            worldSettings.limitFloor = -200f;
             if (worldHouse == null)
             {
                 LoggerInstance.Msg("World object not found.");
@@ -412,15 +285,41 @@ namespace MitaAI
             CustomDialogText.showSubtitles = true;
 
 
-            AddBasement();
+
+
+            try
+            {
+                AddBasement();
+            }  
+            catch { }
+            
+            AllLoaded = true;
+
+            try
+            {
+                GameObject Wardrobe = worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom/Bedroom Wardrobe").gameObject;
+                Wardrobe.GetComponent<BoxCollider>().enabled = false;
+                foreach (Transform child in Wardrobe.transform)
+                {
+                    child.gameObject.SetActive(false);
+                }
+                worldBasement.Find("Quests/Quest1 Start/Trigger Near").gameObject.SetActive(false);
+
+                worldBasement.Find("Act/ContinueScene/TriggerBlock").gameObject.SetActive(false);
+            }
+            catch (Exception e) { LoggerInstance.Msg(e); }
+
+
         }
 
         bool FirstTime = true;
         public override async void OnFixedUpdate()
         {
-            if ( !RequiredSceneNames.Contains(CurrentSceneName) ) return;
-
            
+            if ( CurrentSceneName != "Scene 4 - StartSecret") { return; };
+
+            if ( !AllLoaded ) { return;  };
+
             timer += Time.fixedDeltaTime;
             MitaBoringtimer += Time.fixedDeltaTime;
 
