@@ -48,8 +48,7 @@ namespace MitaAI
         private const float Interval = 0.66f;
         private float timer = 0f;
 
-        private const float MitaBoringInterval = 60f;
-        private float MitaBoringtimer = 0f;
+
 
         string playerMessage = "";
         string patch_to_sound_file = "";
@@ -58,6 +57,40 @@ namespace MitaAI
 
         private HashSet<string> additiveLoadedScenes = new HashSet<string>();
         private bool AllLoaded = false;
+
+
+        private readonly object _lockObj = new object();
+
+        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1); // Синхронизируем доступ ко всем этим операциям
+
+
+        private const float MitaBoringInterval = 60f;
+        private float MitaBoringtimer = 0f;
+        public async Task UpdateBoringTimerAsync(float delta)
+        {
+            await _semaphore.WaitAsync();
+            try
+            {
+                MitaBoringtimer += delta; // Операции с полем
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
+        }
+
+        public async Task ResetBoringTimerAsync()
+        {
+            await _semaphore.WaitAsync();
+            try
+            {
+                MitaBoringtimer = 0f; // Операции с полем
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
+        }
 
 
         public void AddBasement()
@@ -304,13 +337,31 @@ namespace MitaAI
             {
                 GameObject Wardrobe = worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom/Bedroom Wardrobe").gameObject;
                 Wardrobe.GetComponent<BoxCollider>().enabled = false;
-                foreach (Transform child in Wardrobe.transform)
+                try
                 {
-                    child.gameObject.SetActive(false);
+                    foreach (Transform child in Wardrobe.transform)
+                    {
+                        child.gameObject.SetActive(false);
+                    }
                 }
-                worldBasement.Find("Quests/Quest1 Start/Trigger Near").gameObject.SetActive(false);
+                catch (Exception)
+                {
 
-                worldBasement.Find("Act/ContinueScene/TriggerBlock").gameObject.SetActive(false);
+                    throw;
+                }
+
+                try
+                {
+                    worldBasement.Find("Quests/Quest1 Start/Trigger Near").gameObject.SetActive(false);
+
+                    worldBasement.Find("Act/ContinueScene/TriggerBlock").gameObject.SetActive(false);
+                }
+                catch (Exception)
+                {
+
+                    throw;
+                }
+
             }
             catch (Exception e) { LoggerInstance.Msg(e); }
 
@@ -357,13 +408,13 @@ namespace MitaAI
             string dataToSent = "waiting";
             if (playerMessage != "")
             {
-                MitaBoringtimer = 0f;
+                await ResetBoringTimerAsync();
                 dataToSent = playerMessage;
                 playerMessage = "";
             }
             else if (MitaBoringtimer >= MitaBoringInterval)
             {
-                MitaBoringtimer = 0f;
+                await ResetBoringTimerAsync();
                 dataToSent = "boring";
             }
             string response = "";
@@ -381,6 +432,8 @@ namespace MitaAI
             }
             
         }
+
+
         // Глобальный список для хранения дочерних объектов
         List<GameObject> globalChildObjects = new List<GameObject>();
 
@@ -617,7 +670,7 @@ namespace MitaAI
                         answer.speaker = Mita.gameObject;
 
                         // Можем пропустить sleep (задержку) если нужен только звук
-                        MitaBoringtimer = 0f;
+                        await ResetBoringTimerAsync();
 
                         // Выводим текст без звука
                         await Task.Delay(delay);
@@ -974,47 +1027,57 @@ namespace MitaAI
 
         public async Task<string> GetResponseFromPythonSocketAsync(string input)
         {
-            using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+            // Ожидаем, чтобы получить доступ к ресурсу (сокету)
+            await _semaphore.WaitAsync();
+
+            try
             {
-                bool connected = await TryConnectAsync(clientSocket, ServerAddress, Port);
-                if (!connected)
+                using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
                 {
-                    return string.Empty; // Возвращаем пустой ответ, если не удалось подключиться
-                }
-                
-                distance = getDistance();
-                roomIDPlayer = GetRoomID(playerPerson.transform);
-                roomIDMita = GetRoomID(Mita.transform);
-                LoggerInstance.Msg($"{roomIDPlayer} {roomIDMita}");
-                input = $"{input}|||{distance}|||{roomIDPlayer}|||{roomIDMita}";
+                    bool connected = await TryConnectAsync(clientSocket, ServerAddress, Port);
+                    if (!connected)
+                    {
+                        return string.Empty; // Возвращаем пустой ответ, если не удалось подключиться
+                    }
 
-                byte[] messageBytes = Encoding.UTF8.GetBytes(input);
-                await clientSocket.SendAsync(messageBytes, SocketFlags.None);
+                    // Дополнительная логика для подготовки данных
+                    distance = getDistance();
+                    roomIDPlayer = GetRoomID(playerPerson.transform);
+                    roomIDMita = GetRoomID(Mita.transform);
+                    input = $"{input}|||{distance}|||{roomIDPlayer}|||{roomIDMita}";
 
-                byte[] buffer = new byte[2500];
-                try
-                {
-                    int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
+                    byte[] messageBytes = Encoding.UTF8.GetBytes(input);
+                    await clientSocket.SendAsync(messageBytes, SocketFlags.None);
 
-                    string receivedMessage = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    byte[] buffer = new byte[2500];
+                    try
+                    {
+                        int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
 
-                    string[] parts = receivedMessage.Split(new string[] { "|||" }, StringSplitOptions.None);
+                        string receivedMessage = Encoding.UTF8.GetString(buffer, 0, bytesRead);
 
-                    //LoggerInstance.Msg($"Got from piton  {receivedMessage}");
-                    string response = parts[0];
+                        string[] parts = receivedMessage.Split(new string[] { "|||" }, StringSplitOptions.None);
 
-                    
-                    patch_to_sound_file = parts[1];
-                    //LoggerInstance.Msg($"patch_to_sound_file from piton  {patch_to_sound_file}");
-                    return response;
-                }
-                catch (Exception ex)
-                {
-                    LoggerInstance.Msg($"Error receiving data: {ex.Message}");
-                    return string.Empty; // Возвращаем пустой ответ в случае ошибки при получении данных
+                        // Логируем ответ
+                        string response = parts[0];
+
+                        patch_to_sound_file = parts[1];
+                        return response;
+                    }
+                    catch (Exception ex)
+                    {
+                        LoggerInstance.Msg($"Error receiving data: {ex.Message}");
+                        return string.Empty; // Возвращаем пустой ответ в случае ошибки при получении данных
+                    }
                 }
             }
+            finally
+            {
+                // Обязательно освобождаем семафор после выполнения операции
+                _semaphore.Release();
+            }
         }
+
 
         private async Task<bool> TryConnectAsync(Socket socket, string address, int port, int maxRetries = 3, int delayBetweenRetries = 2000)
         {
