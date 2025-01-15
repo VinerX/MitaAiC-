@@ -390,7 +390,7 @@ namespace MitaAI
 
                 try
                 {
-                    worldHouse.Find("World/Act/ContinueScene").gameObject.SetActive(false);
+                    worldBasement.Find("World/Act/ContinueScene").gameObject.SetActive(false);
                 }
                 catch (Exception e )
                 {
@@ -405,6 +405,7 @@ namespace MitaAI
                 string objectPath = "Quests/Quest2 HideAndSeek/Animation Killer";
                 AnimationKiller = FindAndInstantiateObject(worldBasement, objectPath, "InitializeGameObjects");
                 AnimationKiller.GetComponent<Location6_MitaKiller>().mita = Mita.transform;
+                AnimationKiller.SetActive(false);
                 if (AnimationKiller != null)
                 {
                     LoggerInstance.Msg("AnimationKiller instantiated and ready for use.");
@@ -413,7 +414,7 @@ namespace MitaAI
                     if (mitaChild != null)
                     {
                         mitaChild.gameObject.SetActive(false);
-                        Mita.transform.SetParent(AnimationKiller.transform, true);
+                        //Mita.transform.SetParent(AnimationKiller.transform, true);
                         LoggerInstance.Msg("Child object 'Mita' deactivated.");
                     }
                     else
@@ -510,7 +511,6 @@ namespace MitaAI
             return Vector3.Distance(Mita.transform.GetChild(0).position, playerPerson.transform.position);
         }
 
-
         private async Task HandleDialogueAsync()
         {
             
@@ -532,7 +532,10 @@ namespace MitaAI
                 response = await GetResponseFromPythonSocketAsync(dataToSent);
                 if (response != "")
                 {
-                    await DisplayResponseAndEmotionAsync(response);
+                    LoggerInstance.Msg("after GetResponseFromPythonSocketAsync");
+
+                    // Теперь используем MelonCoroutines.Start для запуска корутины
+                    MelonCoroutines.Start(DisplayResponseAndEmotionCoroutine(response));
                 }
             }
             catch (Exception ex)
@@ -655,47 +658,47 @@ namespace MitaAI
 
 
 
-        private async Task DisplayResponseAndEmotionAsync(string response)
+        private readonly object syncLock = new object();
+
+        private IEnumerator DisplayResponseAndEmotionCoroutine(string response)
         {
+            LoggerInstance.Msg("DisplayResponseAndEmotionCoroutine");
+
+            // Пример кода, который будет выполняться на главном потоке
+            yield return null;  // Это нужно для того, чтобы выполнение произошло после завершения текущего кадра
+
+            // Ждем, пока patch_to_sound_file перестанет быть пустым
             while (string.IsNullOrEmpty(patch_to_sound_file))
             {
-                await Task.Delay(100);
+                yield return null;  // Пауза до следующего кадра, проверка снова
             }
 
+            // После того как patch_to_sound_file стал пустым, вызываем метод DisplayResponseAndEmotion
+            DisplayResponseAndEmotion(response);
+        }
+
+
+        private void DisplayResponseAndEmotion(string response)
+        {
+            LoggerInstance.Msg("DisplayResponseAndEmotion");
+
             isInputBlocked = true;
+
             try
             {
-                string modifiedResponse = await SetEmotionBasedOnResponse(response);
-                modifiedResponse = SetMovementStyle(response);
-                modifiedResponse = await SetEmotionBasedOnResponse(response);
-
+                string modifiedResponse = SetEmotionBasedOnResponse(response).Result;
+                modifiedResponse = SetMovementStyle(modifiedResponse);
+                modifiedResponse = SetEmotionBasedOnResponse(modifiedResponse).Result;
 
                 AudioClip audioClip = null;
-                int delay = 4000 * response.Length / 50; // Инициализируем delay для общего случая
 
-                // Загружаем звук, если он есть, перед началом обработки текста
                 if (!string.IsNullOrEmpty(patch_to_sound_file))
                 {
                     try
                     {
                         LoggerInstance.Msg("patch_to_sound_file not null");
-                        audioClip = await LoadAudioClipFromFileAsync(patch_to_sound_file);
+                        audioClip = LoadAudioClipFromFileAsync(patch_to_sound_file).Result;
                         patch_to_sound_file = "";
-
-                        // Создаем или получаем диалоговое окно
-                        GameObject currentDialog = GetOrCreateDialog();
-                        currentDialog.SetActive(true);
-                        Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
-
-                        // Если есть аудио, проигрываем его до начала текста
-                        if (audioClip != null)
-                        {
-                            LoggerInstance.Msg("Loading voice...");
-                            answer.timeSound = delay;
-                            answer.LoadVoice(audioClip);
-                            audioClip = null;
-                        }
-
                     }
                     catch (Exception ex)
                     {
@@ -703,106 +706,96 @@ namespace MitaAI
                     }
                 }
 
-                // Разбиваем ответ на части
+                int delay = 4000 * modifiedResponse.Length / 50;
+                MelonCoroutines.Start(PlayMitaSound(delay, audioClip));
+
                 List<string> dialogueParts = SplitText(modifiedResponse, maxLength: 50);
 
-                foreach (string part in dialogueParts)
-                {
-                    try
-                    {
-                        LoggerInstance.Msg($"Processing dialogue part: {part}");
-
-                        // Извлекаем команды и часть текста
-                        string MofifiedPart = part;
-                        List<string> commands = new List<string>();
-                        try
-                        {
-                            (commands, MofifiedPart) = await ExtractCommandsAsync(part);
-                        }
-                        catch (Exception ex)
-                        {
-
-                            LoggerInstance.Msg("Problem with ExtractCommandsAsync" + ex);
-                        }
-                        
-                        try
-                        {
-                            MofifiedPart = SetFaceStyle(MofifiedPart);
-                            
-                        }
-                        catch (Exception ex)
-                        {
-
-                            LoggerInstance.Msg("Problem with FaceStyle"+ex);
-                        }
-                        
-                        // Если есть команды, обрабатываем их
-                        if (commands.Count > 0)
-                        {
-                            LoggerInstance.Msg("Commands detected, processing...");
-                            try
-                            {
-                                ProcessCommands(commands);
-                            }
-                            catch (Exception cmdEx)
-                            {
-                                LoggerInstance.Error($"Error processing commands: {cmdEx.Message}");
-                            }
-                        }
-                        LoggerInstance.Msg("Before delay");
-                        // Пересчитываем задержку для текущей части
-                        delay = 4000 * MofifiedPart.Length / 50;
-
-                        LoggerInstance.Msg("GetOrCreateDialog");
-                        // Создаем или получаем диалоговое окно
-                        GameObject currentDialog = GetOrCreateDialog();
-                        currentDialog.SetActive(true);
-                        Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
-                        if (answer == null)
-                        {
-                            LoggerInstance.Error("Dialogue_3DText component not found.");
-                            //throw new Exception("Dialogue_3DText component not found.");
-                        }
-
-                        if (Mita?.gameObject == null)
-                        {
-                            LoggerInstance.Error("Mita or Mita.gameObject is null.");
-                            //throw new Exception("Mita or Mita.gameObject is null.");
-                        }
-
-                        LoggerInstance.Msg("answer.textPrint");
-                        // Устанавливаем данные для текста
-                        answer.textPrint = MofifiedPart;
-                        //answer.textPrintNow = MofifiedPart;
-                        answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
-                        answer.timeShow = delay;
-                        answer.speaker = Mita.gameObject;
-
-                        // Можем пропустить sleep (задержку) если нужен только звук
-                        await ResetBoringTimerAsync();
-
-                        // Выводим текст без звука
-                        await Task.Delay(delay);
-
-                        currentDialog.SetActive(false);
-                        LoggerInstance.Msg("Dialogue part finished.");
-                    }
-                    catch (Exception ex)
-                    {
-                        LoggerInstance.Error($"Error processing part of response: {ex.Message}");
-                    }
-                }
+                // Запуск диалогов последовательно, с использованием await или вложенных корутин
+                MelonCoroutines.Start(ShowDialoguesSequentially(dialogueParts));
             }
             catch (Exception ex)
             {
-                LoggerInstance.Error($"Error in DisplayResponseAndEmotionAsync: {ex.Message}");
-            }
-            finally
-            {
-                isInputBlocked = false;
+                LoggerInstance.Error($"Error in DisplayResponseAndEmotion: {ex.Message}");
             }
         }
 
+        private IEnumerator ShowDialoguesSequentially(List<string> dialogueParts)
+        {
+            foreach (string part in dialogueParts)
+            {
+                LoggerInstance.Msg("foreach foreach " + part);
+                string modifiedPart = part;
+                (List<string> commands, modifiedPart) = ExtractCommands(part);
+
+                try
+                {
+
+                    modifiedPart = SetFaceStyle(modifiedPart);
+                    if (commands.Count > 0)
+                    {
+                        ProcessCommands(commands);
+                    }
+                    
+                }
+                catch (Exception ex)
+                {
+                    LoggerInstance.Error($"Error processing part of response: {ex.Message}");
+                }
+
+                int delay = 4000 * modifiedPart.Length / 50;
+                yield return MelonCoroutines.Start(ShowDialogue(modifiedPart, delay));
+            }
+        }
+
+
+
+        private IEnumerator ShowDialogue(string part, int delay)
+        {
+
+            LoggerInstance.Msg("ShowDialogue");
+
+            GameObject currentDialog = GetOrCreateDialog();
+            currentDialog.SetActive(true);
+            Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
+
+
+            answer.textPrint = part;
+            answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
+            answer.timeShow = delay;
+            answer.speaker = Mita?.gameObject;
+
+            yield return new WaitForSeconds(delay / 1000f);
+
+            GameObject.Destroy(currentDialog);
+            LoggerInstance.Msg("Dialogue part finished and destroyed.");
+
+            isInputBlocked = false;
+        }
+
+        private IEnumerator PlayMitaSound(int delay, AudioClip audioClip)
+        {
+            LoggerInstance.Msg("PlayMitaSound");
+
+            GameObject currentDialog = GetOrCreateDialog();
+            currentDialog.SetActive(true);
+            Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
+
+            // Если есть аудио, проигрываем его до начала текста
+            if (audioClip != null)
+            {
+                LoggerInstance.Msg("Loading voice...");
+                answer.timeSound = delay;
+                answer.LoadVoice(audioClip);
+                audioClip = null;
+            }
+            answer.speaker = Mita?.gameObject;
+
+            yield return new WaitForSeconds(delay);
+
+            GameObject.Destroy(currentDialog);
+            LoggerInstance.Msg("Dialogue part finished and destroyed.");
+        }
 
         private void PlayerTalk(string text)
         {
@@ -1123,27 +1116,26 @@ namespace MitaAI
             return cleanedResponse;
         }
 
-        public static async Task<(List<string> commands, string cleanedResponse)> ExtractCommandsAsync(string response)
+        public static (List<string> commands, string cleanedResponse) ExtractCommands(string response)
         {
-            return await Task.Run(() =>
+
+            List<string> commands = new List<string>();
+            string pattern = @"<c>(.*?)</c>";
+            MatchCollection matches = Regex.Matches(response, pattern);
+
+            foreach (Match match in matches)
             {
-                List<string> commands = new List<string>();
-                string pattern = @"<c>(.*?)</c>";
-                MatchCollection matches = Regex.Matches(response, pattern);
-
-                foreach (Match match in matches)
+                if (match.Success)
                 {
-                    if (match.Success)
-                    {
-                        commands.Add(match.Groups[1].Value);
-                    }
+                    commands.Add(match.Groups[1].Value);
                 }
+            }
 
-                // Удаляем теги эмоций из текста
-                string cleanedResponse = Regex.Replace(response, @"<c>.*?</c>", "");
+            // Удаляем теги эмоций из текста
+            string cleanedResponse = Regex.Replace(response, @"<c>.*?</c>", "");
 
-                return (commands, cleanedResponse);
-            });
+            return (commands, cleanedResponse);
+
         }
 
       
@@ -1158,7 +1150,7 @@ namespace MitaAI
         public async Task<string> GetResponseFromPythonSocketAsync(string input)
         {
             // Ожидаем, чтобы получить доступ к ресурсу (сокету)
-            await _semaphore.WaitAsync();
+            
 
             try
             {
@@ -1204,7 +1196,7 @@ namespace MitaAI
             finally
             {
                 // Обязательно освобождаем семафор после выполнения операции
-                _semaphore.Release();
+                
             }
         }
 
