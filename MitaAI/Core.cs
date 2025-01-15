@@ -36,10 +36,12 @@ namespace MitaAI
 
         Transform worldHouse;
         Transform worldBasement;
-
+        Menu MainMenu;
         private GameObject CustomDialog;
         private GameObject CustomDialogPlayer;
-
+        
+        GameObject AnimationKiller;
+        
         private const string ServerAddress = "127.0.0.1";
         private const int Port = 12345;
         private const int PassivePort = 12346;
@@ -144,6 +146,8 @@ namespace MitaAI
             // Перемещаем нож к Mita
             GameObject.Instantiate(knife, Mita.transform);
             MelonLogger.Msg("Knife instantiated on Mita.");
+
+            InitializeGameObjectsWhenReady();
         }
 
         public static Transform FindObjectInScene(string sceneName, string objectPath)
@@ -195,7 +199,7 @@ namespace MitaAI
 
             else if (CurrentSceneName == "SceneMenu")
             {
-                Menu MainMenu = GameObject.Find("MenuGame").GetComponent<Menu>();
+                MainMenu = GameObject.Find("MenuGame").GetComponent<Menu>();
                 MainMenu.Alternative();
                 MainMenu.ButtonLoadScene("Scene 4 - StartSecret");
                 //MainMenu.ButtonLoadScene("Scene 3 - WeTogether");
@@ -248,13 +252,18 @@ namespace MitaAI
 
             var posX = playerTransform.position.x;
             var posZ = playerTransform.position.z;
-
-            // Логика определения комнаты
-            if (posX > 5.3000002f && posZ >= 0) return 0; // Kitchen
-            else if (posX > 5.3000002f && posZ < 0) return 2; // Bedroom
-            else if (posX > -4 && posX < 5) return 1; // Main
-            else if (posX > -11.0f && posX < -4.3000002f) return 3; // Toilet 
-
+            var posY = playerTransform.position.y;
+            if (posY < 0) {
+                return 4;
+            }
+            else
+            {
+                // Логика определения комнаты
+                if (posX > 5.3000002f && posZ >= 0) return 0; // Kitchen
+                else if (posX > 5.3000002f && posZ < 0) return 2; // Bedroom
+                else if (posX > -4 && posX < 5) return 1; // Main
+                else if (posX > -11.0f && posX < -4.3000002f) return 3; // Toilet 
+            }
             return -1; // Если не нашли подходящей комнаты
         }
         private void InitializeGameObjects()
@@ -291,7 +300,7 @@ namespace MitaAI
 
                 if (dialogOriginal == null)
                 {
-                    
+
                     LoggerInstance.Msg("Target object '3D Text 5' not found.");
                 }
 
@@ -300,18 +309,18 @@ namespace MitaAI
             CustomDialog = GameObject.Instantiate(dialogOriginal.gameObject, worldHouse.Find("Quests/Quest 1/Dialogues"));
             CustomDialog.name = "Custom Dialogue";
             Dialogue_3DText CustomDialogText = CustomDialog.GetComponent<Dialogue_3DText>();
-            
+
             CustomDialogText.nextText = null;
             CustomDialogText.sizeHeight = 0.0687f;
             CustomDialogText.sizeSymbol = 0.0014f;
-            CustomDialogText.sizeWidth =  0.75f;
+            CustomDialogText.sizeWidth = 0.75f;
             CustomDialogText.xPrint = 0.413f;
             CustomDialogText.indexString = -1;
 
             dialogOriginal = worldHouse.Find("Quests/Quest 1/Dialogues/Dialogue Player/Dialogue Hello/DPlayer 3");
             CustomDialogPlayer = GameObject.Instantiate(dialogOriginal.gameObject, worldHouse.Find("Quests/Quest 1/Dialogues"));
             CustomDialogPlayer.name = "Custom Dialogue Player";
-            
+
             CustomDialogText = CustomDialogPlayer.GetComponent<Dialogue_3DText>();
 
             CustomDialogText.nextText = null;
@@ -328,45 +337,145 @@ namespace MitaAI
             try
             {
                 AddBasement();
-            }  
+            }
             catch { }
-            
-            AllLoaded = true;
 
+            AllLoaded = true;
+            
+
+            
+
+        }
+
+        private void InitializeGameObjectsWhenReady()
+        {
+            LoggerInstance.Msg("Waiting for worldBasement to be initialized...");
+
+            // Ждем, пока worldBasement не станет не null
+            //while (worldBasement == null)
+            //{
+                // Здесь можно поставить небольшую паузу, чтобы избежать блокировки потока
+              //  System.Threading.Thread.Sleep(100); // Задержка в 100 мс
+            //}
+
+            LoggerInstance.Msg("worldBasement is now initialized. Proceeding with object setup...");
+
+            // Ваши действия после инициализации worldBasement
             try
             {
-                GameObject Wardrobe = worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom/Bedroom Wardrobe").gameObject;
-                Wardrobe.GetComponent<BoxCollider>().enabled = false;
+                // Пробуем найти и безопасно преобразовать объект в Transform
+                var wardrobeTransform = worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom/Bedroom Wardrobe");
+
                 try
                 {
-                    foreach (Transform child in Wardrobe.transform)
+                    if (wardrobeTransform != null)
                     {
-                        child.gameObject.SetActive(false);
+                        var wardrobeGameObject = wardrobeTransform.gameObject;
+                        wardrobeGameObject.GetComponent<BoxCollider>().enabled = false;
+
+                        foreach (Transform child in wardrobeTransform)
+                        {
+                            child.gameObject.SetActive(false);
+                        }
+                    }
+                    else
+                    {
+                        LoggerInstance.Msg("Wardrobe Transform not found.");
                     }
                 }
                 catch (Exception)
                 {
-
-                    throw;
+                    LoggerInstance.Msg("Error while handling wardrobe transform.");
                 }
 
                 try
                 {
-                    worldBasement.Find("Quests/Quest1 Start/Trigger Near").gameObject.SetActive(false);
-
-                    worldBasement.Find("Act/ContinueScene/TriggerBlock").gameObject.SetActive(false);
+                    worldHouse.Find("World/Act/ContinueScene").gameObject.SetActive(false);
                 }
-                catch (Exception)
+                catch (Exception e )
                 {
 
-                    throw;
+                    LoggerInstance.Msg(e);
                 }
 
+
+
+                // Работа с AnimationKiller
+                LoggerInstance.Msg("AnimationKiller start");
+                string objectPath = "Quests/Quest2 HideAndSeek/Animation Killer";
+                AnimationKiller = FindAndInstantiateObject(worldBasement, objectPath, "InitializeGameObjects");
+                AnimationKiller.GetComponent<Location6_MitaKiller>().mita = Mita.transform;
+                if (AnimationKiller != null)
+                {
+                    LoggerInstance.Msg("AnimationKiller instantiated and ready for use.");
+                    var mitaChild = AnimationKiller.transform.Find("Mita");
+
+                    if (mitaChild != null)
+                    {
+                        mitaChild.gameObject.SetActive(false);
+                        Mita.transform.SetParent(AnimationKiller.transform, true);
+                        LoggerInstance.Msg("Child object 'Mita' deactivated.");
+                    }
+                    else
+                    {
+                        LoggerInstance.Msg("Child object 'Mita' not found.");
+                    }
+                }
+                else
+                {
+                    LoggerInstance.Msg("Failed to initialize AnimationKiller.");
+                }
             }
-            catch (Exception e) { LoggerInstance.Msg(e); }
-
-
+            catch (Exception e)
+            {
+                LoggerInstance.Msg($"Error in InitializeGameObjectsWhenReady: {e.Message}");
+            }
         }
+
+
+        private GameObject FindAndInstantiateObject(Transform parent, string path, string logPrefix)
+        {
+            try
+            {
+                LoggerInstance.Msg($"{logPrefix}: Attempting to find object at path: {path}");
+
+                // Проверяем, что родитель не null
+                if (parent == null)
+                {
+                    LoggerInstance.Msg($"{logPrefix}: Parent is null. Cannot search for object.");
+                    return null;
+                }
+
+                // Ищем объект по указанному пути
+                Transform target = parent.Find(path);
+                if (target == null)
+                {
+                    LoggerInstance.Msg($"{logPrefix}: Object not found at path: {path}");
+                    return null;
+                }
+
+                // Логируем успешный поиск
+                LoggerInstance.Msg($"{logPrefix}: Object found. Instantiating...");
+                GameObject instance = GameObject.Instantiate(target.gameObject);
+
+                // Проверяем успешную инстанциацию
+                if (instance == null)
+                {
+                    LoggerInstance.Msg($"{logPrefix}: Failed to instantiate object.");
+                    return null;
+                }
+
+                LoggerInstance.Msg($"{logPrefix}: Object instantiated successfully.");
+                return instance;
+            }
+            catch (Exception e)
+            {
+                LoggerInstance.Msg($"{logPrefix}: Exception occurred - {e.Message}");
+                return null;
+            }
+        }
+
+
 
         bool FirstTime = true;
         public override async void OnFixedUpdate()
@@ -378,7 +487,7 @@ namespace MitaAI
             if ( !AllLoaded ) { return;  };
 
             timer += Time.fixedDeltaTime;
-            MitaBoringtimer += Time.fixedDeltaTime;
+            await UpdateBoringTimerAsync(Time.fixedDeltaTime);
 
 
             if (timer >= Interval)
@@ -618,7 +727,7 @@ namespace MitaAI
                         
                         try
                         {
-                            MofifiedPart = await SetFaceStyle(MofifiedPart);
+                            MofifiedPart = SetFaceStyle(MofifiedPart);
                             
                         }
                         catch (Exception ex)
@@ -764,14 +873,35 @@ namespace MitaAI
                                 Mita.MitaTeleport( GetRandomLoc() );
                                 Location34_Communication.indexSwitchAnimation = 1;
                                 break;
-
                             case "телепортироваться к игроку":
                                 Mita.MitaTeleport(playerPerson.transform);
                                 Location34_Communication.indexSwitchAnimation = 1;
                                 break;
-
+                            case "зарезать игрока":
+                                AnimationKiller.GetComponent<Location6_MitaKiller>().Kill();
+                                break;
+                            case "выключить игрока":
+                                MainMenu.ButtonLoadScene("SceneMenu");
+                                break;
                             default:
-                                LoggerInstance.Msg($"Unknown command: {command}");
+                                if (command.Contains("PositionMita"))
+                                {
+                                    try
+                                    {
+                                        GameObject point = GameObject.Find(command);
+                                        Mita.MitaTeleport(point.transform);
+                                        Location34_Communication.indexSwitchAnimation = 1;
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        LoggerInstance.Msg($"Unknown point: {command}");
+                                    }
+                                }
+                                else
+                                {
+                                    LoggerInstance.Msg($"Unknown command: {command}");
+                                }
+                                
                                 break;
                         }
                     }
@@ -895,7 +1025,7 @@ namespace MitaAI
                 return (emotions, cleanedResponse);
             });
         }
-        public async Task<string> SetFaceStyle(string response)
+        public  string SetFaceStyle(string response)
         {
             LoggerInstance.Error("33333");
             // Регулярное выражение для извлечения эмоций
