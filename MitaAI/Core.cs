@@ -21,6 +21,7 @@ using UnityEngine.Networking;
 using System.Collections;
 using UnityEngine.Playables;
 using System.Linq;
+using UnityEngine.Networking.Match;
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
 
@@ -694,9 +695,8 @@ namespace MitaAI
 
             try
             {
-                string modifiedResponse = SetEmotionBasedOnResponse(response).Result;
-                modifiedResponse = SetMovementStyle(modifiedResponse);
-                modifiedResponse = SetEmotionBasedOnResponse(modifiedResponse).Result;
+
+                string modifiedResponse = SetMovementStyle(response);
 
                 AudioClip audioClip = null;
 
@@ -748,18 +748,21 @@ namespace MitaAI
             LoggerInstance.Msg("ShowDialogue");
 
             string modifiedPart = part;
-
+            List<string> commands;
 
             try
             {
+                LoggerInstance.Msg("Begin try:"+ modifiedPart);
                 modifiedPart = SetFaceStyle(modifiedPart);
+                modifiedPart = SetEmotionBasedOnResponse(modifiedPart);
+                LoggerInstance.Msg("After SetEmotionBasedOnResponse " + modifiedPart);
 
-                (List<string> commands, modifiedPart) = ExtractCommands(part);
+                (commands, modifiedPart) = ExtractCommands(modifiedPart);
                 if (commands.Count > 0)
                 {
                     ProcessCommands(commands);
                 }
-                
+                LoggerInstance.Msg("After ExtractCommands " + modifiedPart);
             }
             catch (Exception ex)
             {
@@ -924,6 +927,26 @@ namespace MitaAI
                 LoggerInstance.Msg($"Error in ProcessCommandsAsync: {ex.Message}");
             }
         }
+        public static (List<string>, string) ExtractCommands(string response)
+        {
+
+            List<string> commands = new List<string>();
+            string pattern = @"<c>(.*?)</c>";
+            MatchCollection matches = Regex.Matches(response, pattern);
+
+            foreach (Match match in matches)
+            {
+                if (match.Success)
+                {
+                    commands.Add(match.Groups[1].Value);
+                }
+            }
+
+            string result = Regex.Replace(response, @"<c>.*?</c>", "");
+            // Удаляем теги эмоций из текста
+            return (commands, result);
+
+        }
 
         private List<string> SplitText(string text, int maxLength)
         {
@@ -986,11 +1009,12 @@ namespace MitaAI
             }
         }
 
-        private async Task<string> SetEmotionBasedOnResponse(string response)
+        private string SetEmotionBasedOnResponse(string response)
         {
+            LoggerInstance.Msg($"Inside SetEmotionBasedOnResponse: "+response);
             try
             {
-                var (emotions, cleanedResponse) = await ExtractEmotionsAsync(response);
+                var (emotions, cleanedResponse) = ExtractEmotions(response);
 
                 if (emotions.Count > 0)
                 {
@@ -998,7 +1022,7 @@ namespace MitaAI
                     Mita.FaceEmotionType(result);
                     
                 }
-
+                LoggerInstance.Msg($"Inside SetEmotionBasedOnResponse end: " + cleanedResponse);
                 return cleanedResponse;
             }
             catch (Exception ex)
@@ -1010,44 +1034,45 @@ namespace MitaAI
         }
 
 
-        public static async Task<(List<string> emotions, string cleanedResponse)> ExtractEmotionsAsync(string response)
+        public static (List<string>, string) ExtractEmotions(string response)
         {
-            return await Task.Run(() =>
+
+            MelonLogger.Msg($"Inside ExtractEmotions start: " + response);
+            List<string> emotions = new List<string>();
+            string pattern = @"<e>(.*?)</e>";
+            MatchCollection matches = Regex.Matches(response, pattern);
+
+            foreach (Match match in matches)
             {
-                List<string> emotions = new List<string>();
-                string pattern = @"<e>(.*?)</e>";
-                MatchCollection matches = Regex.Matches(response, pattern);
-
-                foreach (Match match in matches)
+                if (match.Success)
                 {
-                    if (match.Success)
-                    {
-                        emotions.Add(match.Groups[1].Value);
-                    }
+                    emotions.Add(match.Groups[1].Value);
                 }
+            }
 
-                // Удаляем теги эмоций из текста
-                string cleanedResponse = Regex.Replace(response, @"<e>.*?</e>", "");
+            // Удаляем теги эмоций из текста
+            string cleanedResponse = Regex.Replace(response, @"<e>.*?</e>", "");
 
-                return (emotions, cleanedResponse);
-            });
+            MelonLogger.Msg($"Inside ExtractEmotions end: " + cleanedResponse);
+            return (emotions, cleanedResponse);
+            
         }
-        public  string SetFaceStyle(string response)
+        public string SetFaceStyle(string response)
         {
-            LoggerInstance.Error("33333");
+
             // Регулярное выражение для извлечения эмоций
             string pattern = @"<f>(.*?)</f>";
             Match match = Regex.Match(response, pattern);
 
             string faceStyle = string.Empty;
-            string cleanedResponse = Regex.Replace(response, @"<.*?>", ""); // Очищаем от всех тегов
-            LoggerInstance.Error("4444");
+            string cleanedResponse = Regex.Replace(response, @"<f>.*?</f>", ""); // Очищаем от всех тегов
+
             if (match.Success)
             {
                 // Если эмоция найдена, устанавливаем её в переменную faceStyle
                 faceStyle = match.Groups[1].Value;
             }
-            LoggerInstance.Error("55555");
+
             try
             {
                 // Проверка на наличие объекта Mita перед применением эмоции
@@ -1056,7 +1081,7 @@ namespace MitaAI
                     LoggerInstance.Error("Mita object is null or Mita.gameObject is not active.");
                     return cleanedResponse; // Возвращаем faceStyle и очищенный текст
                 }
-                LoggerInstance.Error("55555");
+
                 // Устанавливаем лицо, если оно найдено
                 switch (faceStyle)
                 {
@@ -1090,7 +1115,7 @@ namespace MitaAI
             Match match = Regex.Match(response, pattern);
 
             string MovementStyle = string.Empty;
-            string cleanedResponse = Regex.Replace(response, @"<.*?>", ""); // Очищаем от всех тегов
+            string cleanedResponse = Regex.Replace(response, @"<m>.*?</m>", ""); // Очищаем от всех тегов
 
             if (match.Success)
             {
@@ -1130,27 +1155,7 @@ namespace MitaAI
             return cleanedResponse;
         }
 
-        public static (List<string> commands, string cleanedResponse) ExtractCommands(string response)
-        {
-
-            List<string> commands = new List<string>();
-            string pattern = @"<c>(.*?)</c>";
-            MatchCollection matches = Regex.Matches(response, pattern);
-
-            foreach (Match match in matches)
-            {
-                if (match.Success)
-                {
-                    commands.Add(match.Groups[1].Value);
-                }
-            }
-
-            // Удаляем теги эмоций из текста
-            return (commands, Regex.Replace(response, @"<c>.*?</c>", ""));
-
-        }
-
-      
+       
 
         private EmotionType GetRandomEmotion()
         {
