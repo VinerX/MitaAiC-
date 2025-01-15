@@ -213,9 +213,9 @@ namespace MitaAI
                     GameObject Trigger = GameObject.Find("World/Quests/Quest 1/Trigger Entry Kitchen");
                     GameObject Location34_CommunicationObject = GameObject.Find("World/Quests/Quest 1/Addon");
                     Location34_Communication = GameObject.Find("World/Quests/Quest 1/Addon").GetComponent<Location34_Communication>();
-                    Location34_Communication.indexSwitchAnimation = 1;
                     Location34_Communication.play = true;
                     Location34_Communication.mitaCanWalk = true;
+                    Location34_Communication.indexSwitchAnimation = 1;
                     Trigger.SetActive(false);
 
                     CollectChildObjects(Location34_CommunicationObject);
@@ -388,15 +388,10 @@ namespace MitaAI
                     LoggerInstance.Msg("Error while handling wardrobe transform.");
                 }
 
-                try
-                {
-                    worldBasement.Find("World/Act/ContinueScene").gameObject.SetActive(false);
-                }
-                catch (Exception e )
-                {
 
-                    LoggerInstance.Msg(e);
-                }
+                TryfindChild(worldBasement, "Act/ContinueScene").SetActive(false);
+
+                //TryfindChild(worldBasement, "/Act/ContinueScene\"").SetActive(false);
 
 
 
@@ -430,6 +425,19 @@ namespace MitaAI
             catch (Exception e)
             {
                 LoggerInstance.Msg($"Error in InitializeGameObjectsWhenReady: {e.Message}");
+            }
+        }
+        public GameObject TryfindChild(Transform parent,string path)
+        {
+            try
+            {
+                return worldBasement.Find(path).gameObject;
+            }
+            catch (Exception e)
+            {
+
+                LoggerInstance.Msg(e);
+                return null;
             }
         }
 
@@ -725,26 +733,10 @@ namespace MitaAI
             foreach (string part in dialogueParts)
             {
                 LoggerInstance.Msg("foreach foreach " + part);
-                string modifiedPart = part;
-                (List<string> commands, modifiedPart) = ExtractCommands(part);
 
-                try
-                {
 
-                    modifiedPart = SetFaceStyle(modifiedPart);
-                    if (commands.Count > 0)
-                    {
-                        ProcessCommands(commands);
-                    }
-                    
-                }
-                catch (Exception ex)
-                {
-                    LoggerInstance.Error($"Error processing part of response: {ex.Message}");
-                }
-
-                int delay = 4000 * modifiedPart.Length / 50;
-                yield return MelonCoroutines.Start(ShowDialogue(modifiedPart, delay));
+                int delay = 4000 * part.Length / 50;
+                yield return MelonCoroutines.Start(ShowDialogue(part, delay));
             }
         }
 
@@ -755,12 +747,32 @@ namespace MitaAI
 
             LoggerInstance.Msg("ShowDialogue");
 
+            string modifiedPart = part;
+
+
+            try
+            {
+                modifiedPart = SetFaceStyle(modifiedPart);
+
+                (List<string> commands, modifiedPart) = ExtractCommands(part);
+                if (commands.Count > 0)
+                {
+                    ProcessCommands(commands);
+                }
+                
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Error($"Error processing part of response: {ex.Message}");
+            }
+
+
             GameObject currentDialog = GetOrCreateDialog();
             currentDialog.SetActive(true);
             Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
 
 
-            answer.textPrint = part;
+            answer.textPrint = modifiedPart;
             answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
             answer.timeShow = delay;
             answer.speaker = Mita?.gameObject;
@@ -871,7 +883,9 @@ namespace MitaAI
                                 Location34_Communication.indexSwitchAnimation = 1;
                                 break;
                             case "зарезать игрока":
+                                AnimationKiller.SetActive(true);
                                 AnimationKiller.GetComponent<Location6_MitaKiller>().Kill();
+                                AnimationKiller.SetActive(false);
                                 break;
                             case "выключить игрока":
                                 MainMenu.ButtonLoadScene("SceneMenu");
@@ -1132,9 +1146,7 @@ namespace MitaAI
             }
 
             // Удаляем теги эмоций из текста
-            string cleanedResponse = Regex.Replace(response, @"<c>.*?</c>", "");
-
-            return (commands, cleanedResponse);
+            return (commands, Regex.Replace(response, @"<c>.*?</c>", ""));
 
         }
 
