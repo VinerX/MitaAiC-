@@ -415,8 +415,9 @@ namespace MitaAI
                 string objectPath = "Quests/Quest2 HideAndSeek/Animation Killer";
                 AnimationKiller = FindAndInstantiateObject(worldBasement, objectPath,"222");
                 //AnimationKiller.GetComponent<Location6_MitaKiller>().mita = Mita.transform;
+                TryTurnChild(worldBasement, "Sounds/Ambient 1", false);
 
-                AnimationKiller.SetActive(true);
+                AnimationKiller.SetActive(false);
                 //DeleteChildren(AnimationKiller.transform.Find("PositionsKill").gameObject);
 
                 if (AnimationKiller != null)
@@ -691,22 +692,33 @@ namespace MitaAI
             LoggerInstance.Msg("DisplayResponseAndEmotionCoroutine");
 
             // Пример кода, который будет выполняться на главном потоке
-            yield return null;  // Это нужно для того, чтобы выполнение произошло после завершения текущего кадра
+            yield return null; // Это нужно для того, чтобы выполнение произошло после завершения текущего кадра
 
-            // Ждем, пока patch_to_sound_file перестанет быть пустым
-            while (string.IsNullOrEmpty(patch_to_sound_file) )
+            float elapsedTime = 0f; // Счетчик времени
+            float timeout = 5.5f;     // Лимит времени ожидания
+
+            // Ждем, пока patch_to_sound_file перестанет быть пустым или не истечет время ожидания
+            while (string.IsNullOrEmpty(patch_to_sound_file) && elapsedTime < timeout)
             {
                 if (patches_to_sound_file.Count > 0)
                 {
                     patch_to_sound_file = patches_to_sound_file.Dequeue();
                 }
- 
-                yield return null;  // Пауза до следующего кадра, проверка снова
+
+                elapsedTime += Time.deltaTime; // Увеличиваем счетчик времени
+                yield return null;             // Пауза до следующего кадра
             }
 
-            // После того как patch_to_sound_file стал пустым, вызываем метод DisplayResponseAndEmotion
+            // Если время ожидания истекло, можно выполнить какой-то fallback-лог
+            if (string.IsNullOrEmpty(patch_to_sound_file))
+            {
+                LoggerInstance.Msg("Timeout reached, patch_to_sound_file is still empty.");
+            }
+
+            // После того как patch_to_sound_file стал не пустым, вызываем метод DisplayResponseAndEmotion
             DisplayResponseAndEmotion(response);
         }
+
 
 
         private void DisplayResponseAndEmotion(string response)
@@ -960,7 +972,7 @@ namespace MitaAI
                 killerObject.transform.Find("PositionsKill").GetChild(0).SetPositionAndRotation(playerPerson.transform.position, playerPerson.transform.rotation);
             }
             killerObject.SetActive(true); // Включаем объект
-
+            
             // Сохраняем исходную позицию и ориентацию Миты
             Vector3 originalPosition = Mita.transform.position;
             Quaternion originalRotation = Mita.transform.rotation;
@@ -968,9 +980,9 @@ namespace MitaAI
             yield return new WaitForSeconds(0.1f);
             killerObject.GetComponent<Location6_MitaKiller>().Kill(); // Вызываем метод Kill()
             yield return new WaitForSeconds(0.1f);
-
+            killerObject.SetActive(false); // Включаем объект
             // Возвращаем Миту в исходное положение
-            
+
             //yield return new WaitForSeconds(delay); // Ждем указанное время
             TryTurnChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom", true);
             yield return new WaitForSeconds(1f);
@@ -1243,7 +1255,10 @@ namespace MitaAI
                     try
                     {
                         lastPosition = Mita.transform.GetChild(0).position;
-                        hierarchy = ObjectHierarchyHelper.GetObjectsInRadiusAsTree(Mita.gameObject, 7f, GameObject.Find("House").transform);
+
+                        if (roomIDMita == 4) hierarchy = ObjectHierarchyHelper.GetObjectsInRadiusAsTree(Mita.gameObject, 10f, worldBasement.Find("House").transform);
+                        else hierarchy = ObjectHierarchyHelper.GetObjectsInRadiusAsTree(Mita.gameObject, 10f, worldHouse.Find("House").transform);
+
                         LoggerInstance.Msg(hierarchy);
                     }
                     catch (Exception e) { LoggerInstance.Msg("hierarchy error " + e); }

@@ -21,7 +21,7 @@ public static class ObjectHierarchyHelper
             if (IsChildOfParent(currentTransform, requiredParent))
             {
                 // Строим дерево имен
-                AppendHierarchyToTree(currentTransform, treeBuilder, 0);
+                AppendHierarchyToTree(currentTransform, treeBuilder, 0, origin.transform.position);
             }
         }
 
@@ -43,10 +43,12 @@ public static class ObjectHierarchyHelper
         return false;
     }
 
-    private static void AppendHierarchyToTree(Transform current, StringBuilder builder, int depth)
+    private static void AppendHierarchyToTree(Transform current, StringBuilder builder, int depth, Vector3 from)
     {
+        string distance = $" {Vector2.Distance(current.transform.position, from):F2} м";
+
         // Добавляем текущий объект с отступами
-        builder.AppendLine(new string('-', depth) + current.name);
+        builder.AppendLine(new string('-', depth) + current.name + distance);
 
         // Рекурсивно добавляем всех детей
         int childCount = current.childCount;
@@ -56,7 +58,7 @@ public static class ObjectHierarchyHelper
             Transform child = current.GetChild(i);
 
             // Рекурсивно добавляем ребенка
-            AppendHierarchyToTree(child, builder, depth + 1);
+            AppendHierarchyToTree(child, builder, depth + 1,from);
         }
     }
 }
