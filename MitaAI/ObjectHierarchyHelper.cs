@@ -45,7 +45,7 @@ public static class ObjectHierarchyHelper
     private static void AppendHierarchyToTree(Transform current, Transform root, StringBuilder builder, int depth)
     {
         // Отступы для уровня вложенности
-        builder.AppendLine(new string(' ', depth * 2) + current.name);
+        builder.AppendLine(new string('-', depth * 2) + current.name);
 
         // Если это корень, заканчиваем построение
         if (current == root)

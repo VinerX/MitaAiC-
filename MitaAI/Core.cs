@@ -966,10 +966,11 @@ namespace MitaAI
             yield return new WaitForSeconds(0.1f);
 
             // Возвращаем Миту в исходное положение
-            Mita.transform.SetPositionAndRotation(originalPosition, originalRotation);
+            
             //yield return new WaitForSeconds(delay); // Ждем указанное время
             TryTurnChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom", true);
-
+            yield return new WaitForSeconds(1f);
+            Mita.transform.SetPositionAndRotation(originalPosition, originalRotation);
         }
 
 
@@ -1231,10 +1232,19 @@ namespace MitaAI
                 }
 
                 // Дополнительная логика для подготовки данных
+                string hierarchy = "";
+                try
+                {
+                    hierarchy = ObjectHierarchyHelper.GetObjectsInRadiusAsTree(Mita.gameObject, 5f, GameObject.Find("House").transform);
+                    LoggerInstance.Msg(hierarchy);
+                }
+                catch (Exception e){ LoggerInstance.Msg("hierarchy error " + e); }
+
+
                 distance = getDistance();
                 roomIDPlayer = GetRoomID(playerPerson.transform);
                 roomIDMita = GetRoomID(Mita.transform);
-                input = $"{input}|||{distance}|||{roomIDPlayer}|||{roomIDMita}";
+                input = $"{input}|||{distance}|||{roomIDPlayer}|||{roomIDMita}|||{hierarchy}";
 
                 byte[] messageBytes = Encoding.UTF8.GetBytes(input);
                 await clientSocket.SendAsync(messageBytes, SocketFlags.None);
