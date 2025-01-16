@@ -22,6 +22,7 @@ using System.Collections;
 using UnityEngine.Playables;
 using System.Linq;
 using UnityEngine.Networking.Match;
+using System.Linq.Expressions;
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
 
@@ -311,6 +312,13 @@ namespace MitaAI
 
             CustomDialog = GameObject.Instantiate(dialogOriginal.gameObject, worldHouse.Find("Quests/Quest 1/Dialogues"));
             CustomDialog.name = "Custom Dialogue";
+
+            // Опускаем объект CustomDialog на 200 единиц по оси Y
+            Vector3 newPosition = CustomDialog.transform.position; // Получаем текущую позицию
+            newPosition.y -= 200; // Уменьшаем Y на 200
+            CustomDialog.transform.position = newPosition; // Применяем новую позицию
+
+
             Dialogue_3DText CustomDialogText = CustomDialog.GetComponent<Dialogue_3DText>();
 
             CustomDialogText.nextText = null;
@@ -401,9 +409,12 @@ namespace MitaAI
                 // Работа с AnimationKiller
                 LoggerInstance.Msg("AnimationKiller start");
                 string objectPath = "Quests/Quest2 HideAndSeek/Animation Killer";
-                AnimationKiller = FindAndInstantiateObject(worldBasement, objectPath, "InitializeGameObjects");
-                AnimationKiller.GetComponent<Location6_MitaKiller>().mita = Mita.transform;
-                AnimationKiller.SetActive(false);
+                AnimationKiller = FindAndInstantiateObject(worldBasement, objectPath,"222");
+                //AnimationKiller.GetComponent<Location6_MitaKiller>().mita = Mita.transform;
+
+                AnimationKiller.SetActive(true);
+                //DeleteChildren(AnimationKiller.transform.Find("PositionsKill").gameObject);
+
                 if (AnimationKiller != null)
                 {
                     LoggerInstance.Msg("AnimationKiller instantiated and ready for use.");
@@ -411,7 +422,7 @@ namespace MitaAI
 
                     if (mitaChild != null)
                     {
-                        mitaChild.gameObject.SetActive(false);
+                        //mitaChild.gameObject.SetActive(false);
                         //Mita.transform.SetParent(AnimationKiller.transform, true);
                         LoggerInstance.Msg("Child object 'Mita' deactivated.");
                     }
@@ -443,7 +454,19 @@ namespace MitaAI
                 return null;
             }
         }
+        public void TryTurnChild(Transform parent, string path, bool on)
+        {
+            try
+            {
+                TryfindChild(parent, path).gameObject.SetActive(on);
+            }
+            catch (Exception e)
+            {
 
+                LoggerInstance.Msg(e);
+                return;
+            }
+        }
 
         private GameObject FindAndInstantiateObject(Transform parent, string path, string logPrefix)
         {
@@ -487,6 +510,29 @@ namespace MitaAI
             }
         }
 
+        public static void DeleteChildren(GameObject parent)
+        {
+            if (parent == null)
+            {
+                MelonLoader.MelonLogger.Error("Parent object is null.");
+                return;
+            }
+
+            // Создаем временный массив, чтобы избежать изменения итерируемой коллекции
+            Transform[] children = new Transform[parent.transform.childCount];
+            for (int i = 0; i < parent.transform.childCount; i++)
+            {
+                children[i] = parent.transform.GetChild(i);
+            }
+
+            // Удаляем каждого ребенка
+            foreach (Transform child in children)
+            {
+                GameObject.Destroy(child.gameObject);
+            }
+
+            MelonLoader.MelonLogger.Msg($"All children of {parent.name} have been deleted.");
+        }
 
 
         bool FirstTime = true;
@@ -860,9 +906,7 @@ namespace MitaAI
                                 Location34_Communication.indexSwitchAnimation = 1;
                                 break;
                             case "зарезать игрока":
-                                AnimationKiller.SetActive(true);
-                                AnimationKiller.GetComponent<Location6_MitaKiller>().Kill();
-                                AnimationKiller.SetActive(false);
+                                MelonCoroutines.Start(ActivateAndDisableKiller(AnimationKiller, 3f)); // Время выключения - 3 секунды
                                 break;
                             case "выключить игрока":
                                 MainMenu.ButtonLoadScene("SceneMenu");
@@ -901,6 +945,34 @@ namespace MitaAI
                 LoggerInstance.Msg($"Error in ProcessCommandsAsync: {ex.Message}");
             }
         }
+        // Корутин для активации и деактивации объекта
+        private IEnumerator ActivateAndDisableKiller(GameObject killerObject, float delay)
+        {
+            //GameObject point = new GameObject();
+            //point.transform.SetPositionAndRotation(playerPerson.transform.position, playerPerson.transform.rotation);
+            //point.transform.SetParent(killerObject.transform.Find("PositionsKill"));
+            if (killerObject.transform.Find("PositionsKill").childCount > 0)
+            {
+                killerObject.transform.Find("PositionsKill").GetChild(0).SetPositionAndRotation(playerPerson.transform.position, playerPerson.transform.rotation);
+            }
+            killerObject.SetActive(true); // Включаем объект
+
+            // Сохраняем исходную позицию и ориентацию Миты
+            Vector3 originalPosition = Mita.transform.position;
+            Quaternion originalRotation = Mita.transform.rotation;
+            Mita.transform.SetPositionAndRotation(new Vector3(0,0,500),Quaternion.identity);
+            yield return new WaitForSeconds(0.1f);
+            killerObject.GetComponent<Location6_MitaKiller>().Kill(); // Вызываем метод Kill()
+            yield return new WaitForSeconds(0.1f);
+
+            // Возвращаем Миту в исходное положение
+            Mita.transform.SetPositionAndRotation(originalPosition, originalRotation);
+            //yield return new WaitForSeconds(delay); // Ждем указанное время
+            TryTurnChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom", true);
+
+        }
+
+
         public static (List<string>, string) ExtractCommands(string response)
         {
 
