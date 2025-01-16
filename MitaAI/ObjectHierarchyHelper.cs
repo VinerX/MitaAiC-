@@ -48,9 +48,8 @@ public static class ObjectHierarchyHelper
         // Добавляем текущий объект с отступами
         builder.AppendLine(new string('-', depth) + current.name);
 
-        // Используем доступ к дочерним объектам через индексы для Il2Cpp
+        // Рекурсивно добавляем всех детей
         int childCount = current.childCount;
-
         for (int i = 0; i < childCount; i++)
         {
             // Получаем дочерний объект по индексу
