@@ -55,6 +55,8 @@ namespace MitaAI
 
         string playerMessage = "";
         string patch_to_sound_file = "";
+        Queue<string> patches_to_sound_file = new Queue<string>();
+
         List<string> RequiredSceneNames = new List<string> { "Scene 4 - StartSecret", "Scene 3 - WeTogether" };
         string CurrentSceneName;
 
@@ -632,41 +634,6 @@ namespace MitaAI
         // Список для хранения созданных диалогов
         private List<GameObject> dialogPool = new List<GameObject>();
 
-        private GameObject GetOrCreateDialog()
-        {
-            // Если нет доступного, создаем новый
-            return InstantiateDialog();
-            //dialogPool.Add(newDialog);
-
-/*
-            // Ищем неактивный диалог в пуле
-            foreach (var dialog in dialogPool)
-            {
-                if (!dialog.activeSelf)
-                {
-                    //ClearChildren(dialog.gameObject);
-                    return dialog;
-                }
-            }
-
-            // Если нет доступного, создаем новый
-            //GameObject newDialog = InstantiateDialog();
-            dialogPool.Add(newDialog);
-            return newDialog;
-
-            // Метод для очистки дочерних объектов
-            void ClearChildren(GameObject parent)
-            {
-                foreach (Transform child in parent.transform)
-                {
-                    GameObject.Destroy(child.gameObject);
-                }
-            }*/
-        }
-        // Метод для очистки дочерних объектов
-
-
-
         private readonly object syncLock = new object();
 
         private IEnumerator DisplayResponseAndEmotionCoroutine(string response)
@@ -677,8 +644,13 @@ namespace MitaAI
             yield return null;  // Это нужно для того, чтобы выполнение произошло после завершения текущего кадра
 
             // Ждем, пока patch_to_sound_file перестанет быть пустым
-            while (string.IsNullOrEmpty(patch_to_sound_file))
+            while (string.IsNullOrEmpty(patch_to_sound_file) )
             {
+                if (patches_to_sound_file.Count > 0)
+                {
+                    patch_to_sound_file = patches_to_sound_file.Dequeue();
+                }
+ 
                 yield return null;  // Пауза до следующего кадра, проверка снова
             }
 
@@ -735,7 +707,7 @@ namespace MitaAI
                 LoggerInstance.Msg("foreach foreach " + part);
 
 
-                int delay = 4000 * part.Length / 50;
+                int delay = Mathf.Max(3500 * part.Length / 50,500);
                 yield return MelonCoroutines.Start(ShowDialogue(part, delay));
             }
         }
@@ -749,12 +721,12 @@ namespace MitaAI
 
             string modifiedPart = part;
             List<string> commands;
-
+            EmotionType emotion = EmotionType.none; 
             try
             {
                 LoggerInstance.Msg("Begin try:"+ modifiedPart);
                 modifiedPart = SetFaceStyle(modifiedPart);
-                modifiedPart = SetEmotionBasedOnResponse(modifiedPart);
+                (emotion,modifiedPart) = SetEmotionBasedOnResponse(modifiedPart);
                 LoggerInstance.Msg("After SetEmotionBasedOnResponse " + modifiedPart);
 
                 (commands, modifiedPart) = ExtractCommands(modifiedPart);
@@ -770,8 +742,8 @@ namespace MitaAI
             }
 
 
-            GameObject currentDialog = GetOrCreateDialog();
-            currentDialog.SetActive(true);
+            GameObject currentDialog = InstantiateDialog();
+            
             Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
 
 
@@ -779,7 +751,9 @@ namespace MitaAI
             answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
             answer.timeShow = delay;
             answer.speaker = Mita?.gameObject;
+            if (emotion  != EmotionType.none) answer.emotionFinish = emotion;
 
+            currentDialog.SetActive(true);
             yield return new WaitForSeconds(delay / 1000f);
 
             GameObject.Destroy(currentDialog);
@@ -792,7 +766,7 @@ namespace MitaAI
         {
             LoggerInstance.Msg("PlayMitaSound");
 
-            GameObject currentDialog = GetOrCreateDialog();
+            GameObject currentDialog = InstantiateDialog();
             currentDialog.SetActive(true);
             Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
 
@@ -1009,27 +983,32 @@ namespace MitaAI
             }
         }
 
-        private string SetEmotionBasedOnResponse(string response)
+        private (EmotionType,string) SetEmotionBasedOnResponse(string response)
         {
             LoggerInstance.Msg($"Inside SetEmotionBasedOnResponse: "+response);
             try
             {
                 var (emotions, cleanedResponse) = ExtractEmotions(response);
-
+                EmotionType emotion = EmotionType.none;
                 if (emotions.Count > 0)
                 {
                     Enum.TryParse<EmotionType>(emotions[0], true, out var result);
+
                     Mita.FaceEmotionType(result);
-                    
+                    if (emotions.Count > 1) { 
+                        Enum.TryParse<EmotionType>(emotions[1], true, out var result2);
+                        emotion = result2;
+                    }
+
                 }
                 LoggerInstance.Msg($"Inside SetEmotionBasedOnResponse end: " + cleanedResponse);
-                return cleanedResponse;
+                return (emotion,cleanedResponse);
             }
             catch (Exception ex)
             {
                 LoggerInstance.Msg($"Error extracting emotion: {ex.Message}");
                 //Mita.FaceEmotionType(GetRandomEmotion());
-                return response; // Если произошла ошибка, возвращаем исходный текст
+                return (EmotionType.none, response); // Если произошла ошибка, возвращаем исходный текст
             }
         }
 
@@ -1169,52 +1148,48 @@ namespace MitaAI
             // Ожидаем, чтобы получить доступ к ресурсу (сокету)
             
 
-            try
+            
+            
+            using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
             {
-                using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+                bool connected = await TryConnectAsync(clientSocket, ServerAddress, Port);
+                if (!connected)
                 {
-                    bool connected = await TryConnectAsync(clientSocket, ServerAddress, Port);
-                    if (!connected)
-                    {
-                        return string.Empty; // Возвращаем пустой ответ, если не удалось подключиться
-                    }
+                    return string.Empty; // Возвращаем пустой ответ, если не удалось подключиться
+                }
 
-                    // Дополнительная логика для подготовки данных
-                    distance = getDistance();
-                    roomIDPlayer = GetRoomID(playerPerson.transform);
-                    roomIDMita = GetRoomID(Mita.transform);
-                    input = $"{input}|||{distance}|||{roomIDPlayer}|||{roomIDMita}";
+                // Дополнительная логика для подготовки данных
+                distance = getDistance();
+                roomIDPlayer = GetRoomID(playerPerson.transform);
+                roomIDMita = GetRoomID(Mita.transform);
+                input = $"{input}|||{distance}|||{roomIDPlayer}|||{roomIDMita}";
 
-                    byte[] messageBytes = Encoding.UTF8.GetBytes(input);
-                    await clientSocket.SendAsync(messageBytes, SocketFlags.None);
+                byte[] messageBytes = Encoding.UTF8.GetBytes(input);
+                await clientSocket.SendAsync(messageBytes, SocketFlags.None);
 
-                    byte[] buffer = new byte[2500];
-                    try
-                    {
-                        int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
+                byte[] buffer = new byte[2500];
+                try
+                {
+                    int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
 
-                        string receivedMessage = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    string receivedMessage = Encoding.UTF8.GetString(buffer, 0, bytesRead);
 
-                        string[] parts = receivedMessage.Split(new string[] { "|||" }, StringSplitOptions.None);
+                    string[] parts = receivedMessage.Split(new string[] { "|||" }, StringSplitOptions.None);
 
-                        // Логируем ответ
-                        string response = parts[0];
+                    // Логируем ответ
+                    string response = parts[0];
 
-                        patch_to_sound_file = parts[1];
-                        return response;
-                    }
-                    catch (Exception ex)
-                    {
-                        LoggerInstance.Msg($"Error receiving data: {ex.Message}");
-                        return string.Empty; // Возвращаем пустой ответ в случае ошибки при получении данных
-                    }
+                    patches_to_sound_file.Enqueue(parts[1]);
+                    //patch_to_sound_file = parts[1];
+                    return response;
+                }
+                catch (Exception ex)
+                {
+                    LoggerInstance.Msg($"Error receiving data: {ex.Message}");
+                    return string.Empty; // Возвращаем пустой ответ в случае ошибки при получении данных
                 }
             }
-            finally
-            {
-                // Обязательно освобождаем семафор после выполнения операции
-                
-            }
+            
         }
 
 
