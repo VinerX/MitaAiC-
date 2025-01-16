@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using UnityEngine;
+using Il2CppSystem.Collections.Generic;
 
 public static class ObjectHierarchyHelper
 {
@@ -20,7 +21,7 @@ public static class ObjectHierarchyHelper
             if (IsChildOfParent(currentTransform, requiredParent))
             {
                 // Строим дерево имен
-                AppendHierarchyToTree(currentTransform, requiredParent, treeBuilder, 0);
+                AppendHierarchyToTree(currentTransform, treeBuilder, 0);
             }
         }
 
@@ -42,19 +43,21 @@ public static class ObjectHierarchyHelper
         return false;
     }
 
-    private static void AppendHierarchyToTree(Transform current, Transform root, StringBuilder builder, int depth)
+    private static void AppendHierarchyToTree(Transform current, StringBuilder builder, int depth)
     {
-        // Отступы для уровня вложенности
-        builder.AppendLine(new string('-', depth * 2) + current.name);
+        // Добавляем текущий объект с отступами
+        builder.AppendLine(new string('-', depth) + current.name);
 
-        // Если это корень, заканчиваем построение
-        if (current == root)
-            return;
+        // Используем доступ к дочерним объектам через индексы для Il2Cpp
+        int childCount = current.childCount;
 
-        // Рекурсивно добавляем родителя
-        if (current.parent != null)
+        for (int i = 0; i < childCount; i++)
         {
-            AppendHierarchyToTree(current.parent, root, builder, depth + 1);
+            // Получаем дочерний объект по индексу
+            Transform child = current.GetChild(i);
+
+            // Рекурсивно добавляем ребенка
+            AppendHierarchyToTree(child, builder, depth + 1);
         }
     }
 }

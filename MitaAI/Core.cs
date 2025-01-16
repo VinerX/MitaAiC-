@@ -46,17 +46,21 @@ namespace MitaAI
         
         private const string ServerAddress = "127.0.0.1";
         private const int Port = 12345;
-        private const int PassivePort = 12346;
 
 
         private const float Interval = 0.66f;
         private float timer = 0f;
 
-
+        Vector3 lastPosition;
 
         string playerMessage = "";
-        string patch_to_sound_file = "";
+        
         Queue<string> patches_to_sound_file = new Queue<string>();
+        string patch_to_sound_file = "";
+        
+        string hierarchy = "";
+
+        
 
         List<string> RequiredSceneNames = new List<string> { "Scene 4 - StartSecret", "Scene 3 - WeTogether" };
         string CurrentSceneName;
@@ -1232,13 +1236,19 @@ namespace MitaAI
                 }
 
                 // Дополнительная логика для подготовки данных
-                string hierarchy = "";
-                try
+
+
+                if (Vector3.Distance(Mita.transform.GetChild(0).position, lastPosition) > 2f)
                 {
-                    hierarchy = ObjectHierarchyHelper.GetObjectsInRadiusAsTree(Mita.gameObject, 5f, GameObject.Find("House").transform);
-                    LoggerInstance.Msg(hierarchy);
+                    try
+                    {
+                        lastPosition = Mita.transform.GetChild(0).position;
+                        hierarchy = ObjectHierarchyHelper.GetObjectsInRadiusAsTree(Mita.gameObject, 7f, GameObject.Find("House").transform);
+                        LoggerInstance.Msg(hierarchy);
+                    }
+                    catch (Exception e) { LoggerInstance.Msg("hierarchy error " + e); }
                 }
-                catch (Exception e){ LoggerInstance.Msg("hierarchy error " + e); }
+    
 
 
                 distance = getDistance();
