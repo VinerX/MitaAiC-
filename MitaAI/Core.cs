@@ -25,7 +25,10 @@ using UnityEngine.Networking.Match;
 using System.Linq.Expressions;
 using Il2CppColorful;
 using Il2CppInterop.Runtime;
-using Il2CppColorful;
+using static MelonLoader.ICSharpCode.SharpZipLib.Zip.ZipEntryFactory;
+using System.Globalization;
+using Il2CppInterop.Runtime.InteropTypes;
+
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
 
@@ -79,7 +82,7 @@ namespace MitaAI
         private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1); // Синхронизируем доступ ко всем этим операциям
 
 
-        private const float MitaBoringInterval = 60f;
+        private const float MitaBoringInterval = 75f;
         private float MitaBoringtimer = 0f;
         public async Task UpdateBoringTimerAsync(float delta)
         {
@@ -1036,9 +1039,23 @@ namespace MitaAI
         private List<string> SplitText(string text, int maxLength)
         {
             List<string> parts = new List<string>();
+            Dictionary<string, string> placeholders = new Dictionary<string, string>();
+
+            // Регулярное выражение для поиска служебных частей
+            string pattern = @"<.*?>.*?</.*?>";
+            int placeholderCounter = 0;
+
+            // Заменяем служебные части на уникальные маркеры
+            string processedText = Regex.Replace(text, pattern, match =>
+            {
+                string placeholder = $"@@{placeholderCounter}@@";
+                placeholders[placeholder] = match.Value; // Сохраняем оригинальный текст
+                placeholderCounter++;
+                return placeholder;
+            });
 
             // Разделяем по строкам
-            string[] lines = text.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            string[] lines = processedText.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
             foreach (string line in lines)
             {
@@ -1072,8 +1089,20 @@ namespace MitaAI
                 }
             }
 
+            // Восстанавливаем служебные части
+            for (int i = 0; i < parts.Count; i++)
+            {
+                foreach (var placeholder in placeholders)
+                {
+                    parts[i] = parts[i].Replace(placeholder.Key, placeholder.Value);
+                }
+            }
+
             return parts;
         }
+
+
+
 
 
         private GameObject InstantiateDialog(bool Mita = true)
@@ -1247,6 +1276,8 @@ namespace MitaAI
 
         private string ProcessPlayerEffects(string response)
         {
+            LoggerInstance.Msg("Starting ProcessPlayerEffects...");
+
             List<string> effects = new List<string>();
             string pattern = @"<v>(.*?)</v>";
             MatchCollection matches = Regex.Matches(response, pattern);
@@ -1256,64 +1287,90 @@ namespace MitaAI
                 if (match.Success)
                 {
                     effects.Add(match.Groups[1].Value);
+                    LoggerInstance.Msg($"Found effect tag: {match.Groups[1].Value}");
                 }
             }
 
             string result = Regex.Replace(response, @"<v>.*?</v>", "");
-            // Удаляем теги эмоций из текста
-            
+            LoggerInstance.Msg("Removed effect tags from response.");
 
             try
             {
                 foreach (string effectAndTime in effects)
                 {
+                    LoggerInstance.Msg($"Processing effect and time: {effectAndTime}");
+
                     string[] parts = effectAndTime.Split(',');
                     string effect = "";
                     float time = 1f;
-                    if (parts.Length == 2 && float.TryParse(parts[1], out time))
+
+                    if (parts.Length == 2 && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out time))
                     {
-                         effect = parts[0];
-                        // Теперь у нас есть переменные effect и time
-                        Console.WriteLine($"Effect: {effect}, Time: {time}");
+                        effect = parts[0];
+                        LoggerInstance.Msg($"Parsed effect: {effect}, time: {time}");
+                    }
+                    else
+                    {
+                        LoggerInstance.Msg($"Invalid format for effect and time: {effectAndTime}");
+                        continue;
                     }
 
                     Component effectComponent = null;
                     try
                     {
+                        LoggerInstance.Msg($"Attempting to find component for effect: {effect}");
                         switch (effect.ToLower())
                         {
-                            case "Глитч":
-                                effectComponent = playerEffectsObject.GetComponentByName("Glitch");
-                                
-                                break;
-
-                            case "Телемост":
+                            case "глитч":
                                 effectComponent = playerEffectsObject.GetComponentByName("Glitch");
                                 break;
-                            case "ТВ-Удар":
+                            case "телемост":
+                                playerEffects.EffectDatamosh(true);
+                                MelonCoroutines.Start(DisableEffectAfterDelay(playerEffects, "EffectDatamosh", time)); // Запускаем корутину для выключения эффекта
+                                break;
+                            case "тв-удар":
+                                playerEffects.EffectClickTelevision();
+                                break;
+                            case "помехи":
                                 effectComponent = playerEffectsObject.GetComponentByName("Glitch");
                                 break;
-                            case "Помехи":
-                                effectComponent = playerEffectsObject.GetComponentByName("Glitch");
-                                break;
-                            case "Негатив":
+                            case "негатив":
                                 effectComponent = playerEffectsObject.GetComponentByName("Negative");
                                 break;
-                            case "Кровь":
+                            case "кровь":
                                 effectComponent = playerEffectsObject.GetComponentByName("FastVignette");
                                 break;
                             default:
-                                
-                                break;
+                                LoggerInstance.Msg($"Unknown effect: {effect}");
+                                continue;
                         }
-                        if (effectComponent != null && effectComponent is MonoBehaviour monoBehaviourComponent)
+
+                        if (effectComponent != null)
                         {
-                            monoBehaviourComponent.enabled = true; // Включаем компонент
-                            MelonCoroutines.Start(ToggleComponentAfterTime(monoBehaviourComponent, time)); // Запускаем корутину
-                        }
-                        else
-                        {
-                            LoggerInstance.Msg($"Component {effectComponent?.GetType().Name} is not a MonoBehaviour or is null.");
+                            if (effectComponent is MonoBehaviour monoBehaviourComponent)
+                            {
+                                // Если это стандартный MonoBehaviour
+                                monoBehaviourComponent.enabled = true; // Включаем компонент
+                                MelonCoroutines.Start(ToggleComponentAfterTime(monoBehaviourComponent, time)); // Запускаем корутину
+                            }
+                            else if (effectComponent is Il2CppObjectBase il2cppComponent)
+                            {
+                                // Если это Il2CppObjectBase
+                                LoggerInstance.Msg($"Il2Cpp component detected: {il2cppComponent.GetType().Name}");
+
+                                // Проверяем, имеет ли компонент свойство enabled
+                                var enabledProperty = il2cppComponent.GetType().GetProperty("enabled");
+                                var behaviour = il2cppComponent.TryCast<Behaviour>();
+                                behaviour.enabled = true;
+
+                                // Запускаем корутину, передавая Il2Cpp-компонент
+                                MelonCoroutines.Start(HandleIl2CppComponent(il2cppComponent, time));
+
+                            }
+                            else
+                            {
+                                LoggerInstance.Warning($"Component {effectComponent?.GetType().Name} is not a MonoBehaviour or Il2CppObjectBase.");
+                            }
                         }
 
                     }
@@ -1321,39 +1378,121 @@ namespace MitaAI
                     {
                         LoggerInstance.Msg($"Error processing effect '{effect}': {ex.Message}");
                     }
-
                 }
             }
             catch (Exception ex)
             {
-                LoggerInstance.Msg($"Error in ProcessEffectsAsync: {ex.Message}");
+                LoggerInstance.Msg($"Error in ProcessPlayerEffects: {ex.Message}");
             }
 
+            LoggerInstance.Msg("Finished ProcessPlayerEffects.");
             return result;
         }
 
         // Корутинa для переключения активности компоненты
         public IEnumerator ToggleComponentAfterTime(Component component, float delay)
         {
+            LoggerInstance.Msg($"Starting ToggleComponentAfterTime for {component?.GetType().Name} with delay {delay}...");
+
             if (component == null)
             {
-                Debug.LogError("Component is null. Cannot toggle.");
+                LoggerInstance.Msg("Component is null. Cannot toggle.");
                 yield break;
             }
 
-            // Пробуем преобразовать Component в MonoBehaviour
             if (component is MonoBehaviour monoBehaviourComponent)
             {
                 yield return new WaitForSeconds(delay);
 
-                monoBehaviourComponent.enabled = !monoBehaviourComponent.enabled; // Переключаем активность
-                Debug.Log($"{monoBehaviourComponent.GetType().Name} is now {(monoBehaviourComponent.enabled ? "enabled" : "disabled")}");
+                monoBehaviourComponent.enabled = !monoBehaviourComponent.enabled;
+                LoggerInstance.Msg($"{monoBehaviourComponent.GetType().Name} is now {(monoBehaviourComponent.enabled ? "enabled" : "disabled")}");
+            }
+            else if (component is Il2CppObjectBase il2cppComponent)
+            {
+                LoggerInstance.Msg($"Detected Il2Cpp component: {il2cppComponent.GetType().Name}");
+
+                // Проверяем, есть ли у компонента свойство enabled
+                var enabledProperty = il2cppComponent.GetType().GetProperty("enabled");
+                if (enabledProperty != null && enabledProperty.PropertyType == typeof(bool))
+                {
+                    // Читаем текущее значение свойства
+                    bool isEnabled = (bool)enabledProperty.GetValue(il2cppComponent);
+                    LoggerInstance.Msg($"Current enabled state of {il2cppComponent.GetType().Name}: {isEnabled}");
+
+                    yield return new WaitForSeconds(delay);
+
+                    // Переключаем значение
+                    enabledProperty.SetValue(il2cppComponent, !isEnabled);
+                    LoggerInstance.Msg($"{il2cppComponent.GetType().Name} is now {(!isEnabled ? "enabled" : "disabled")}");
+                }
+                else
+                {
+                    LoggerInstance.Warning($"The component {il2cppComponent.GetType().Name} does not have an 'enabled' property.");
+                }
             }
             else
             {
-                Debug.LogError($"Component {component.GetType().Name} is not a MonoBehaviour. Cannot toggle.");
+                LoggerInstance.Warning($"Component {component?.GetType().Name} is not a MonoBehaviour or Il2CppObjectBase. Cannot toggle.");
+            }
+
+            LoggerInstance.Msg($"Finished ToggleComponentAfterTime for {component?.GetType().Name}.");
+        }
+
+        public IEnumerator HandleIl2CppComponent(Il2CppObjectBase il2cppComponent, float delay)
+        {
+            LoggerInstance.Msg($"Starting HandleIl2CppComponent for {il2cppComponent?.GetType().Name} with delay {delay}...");
+
+            if (il2cppComponent == null)
+            {
+                LoggerInstance.Msg("Il2CppComponent is null. Cannot toggle.");
+                yield break;
+            }
+
+            // Пробуем преобразовать объект в Behaviour
+            var behaviour = il2cppComponent.TryCast<Behaviour>();
+            if (behaviour != null)
+            {
+                LoggerInstance.Msg($"Il2Cpp Behaviour detected: {behaviour.GetType().Name}");
+
+                // Читаем текущее состояние и переключаем
+                bool currentState = behaviour.enabled;
+                LoggerInstance.Msg($"Current enabled state of {behaviour.GetType().Name}: {currentState}");
+
+                yield return new WaitForSeconds(delay);
+
+                behaviour.enabled = !currentState;
+                LoggerInstance.Msg($"{behaviour.GetType().Name} is now {(behaviour.enabled ? "enabled" : "disabled")}");
+            }
+            else
+            {
+                LoggerInstance.Warning($"The Il2Cpp component {il2cppComponent.GetType().Name} is not a Behaviour or does not support 'enabled' property.");
+            }
+
+            LoggerInstance.Msg($"Finished HandleIl2CppComponent for {il2cppComponent?.GetType().Name}.");
+        }
+
+        private IEnumerator DisableEffectAfterDelay(Il2CppObjectBase il2cppComponent, string effectMethodName, float delay)
+        {
+            yield return new WaitForSeconds(delay); // Ожидаем заданное время
+
+            // Получаем тип компонента Il2Cpp
+            var componentType = il2cppComponent.GetType();
+
+            // Используем метод GetMethod для получения метода с именем effectMethodName
+            var method = componentType.GetMethod(effectMethodName);
+
+            if (method != null)
+            {
+                // Передаём параметр false для выключения эффекта
+                method.Invoke(il2cppComponent, new object[] { false });
+                LoggerInstance.Msg($"Effect {effectMethodName} has been disabled after {delay} seconds.");
+            }
+            else
+            {
+                LoggerInstance.Warning($"Effect method {effectMethodName} not found on Il2Cpp component.");
             }
         }
+
 
 
         private EmotionType GetRandomEmotion()
