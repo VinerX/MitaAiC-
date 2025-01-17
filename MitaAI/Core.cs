@@ -46,12 +46,17 @@ namespace MitaAI
 
         Transform worldHouse;
         Transform worldBasement;
+        Transform worldBackrooms2;
+
+
+        GameObject ManekenTemplate;
+
         Menu MainMenu;
         private GameObject CustomDialog;
         private GameObject CustomDialogPlayer;
-        
+        GameObject playerCamera;
         GameObject AnimationKiller;
-        
+        BlackScreen blackScreen;
         private const string ServerAddress = "127.0.0.1";
         private const int Port = 12345;
 
@@ -110,19 +115,39 @@ namespace MitaAI
             }
         }
 
+        bool manekenGame = false;
 
-        public void AddBasement()
+        public void AddOtherScenes()
         {
-            string sceneToLoad = "Scene 6 - BasementFirst";
-            string knifePath = "Quests/Quest2 HideAndSeek/Animation Killer/Mita/MitaPerson Mita/Armature/Hips/Spine/Chest/Right shoulder/Right arm/Right elbow/Right wrist/Right item/Knife";
-            string objectPath = "World";
-
             // Запускаем корутину для ожидания загрузки сцены
-            additiveLoadedScenes.Add( sceneToLoad );
-            MelonCoroutines.Start(WaitForSceneAndInstantiate(sceneToLoad, objectPath, knifePath));
+            string sceneToLoad;
+            try
+            {
+                sceneToLoad = "Scene 6 - BasementFirst";
+                additiveLoadedScenes.Add(sceneToLoad);
+                MelonCoroutines.Start(WaitForSceneAndInstantiate(sceneToLoad));
+            }
+            catch (Exception)
+            {
+
+                
+            }
+            try
+            {
+                sceneToLoad = "Scene 11 - Backrooms";
+                additiveLoadedScenes.Add(sceneToLoad);
+                MelonCoroutines.Start(WaitForSceneAndInstantiate2(sceneToLoad));
+            }
+            catch (Exception)
+            {
+
+
+            }
+
+
         }
 
-        private IEnumerator WaitForSceneAndInstantiate(string sceneToLoad, string objectPath, string knifePath)
+        private IEnumerator WaitForSceneAndInstantiate(string sceneToLoad)
         {
             // Загружаем сцену
             MelonLogger.Msg($"Loading scene: {sceneToLoad}");
@@ -140,7 +165,7 @@ namespace MitaAI
             MelonLogger.Msg($"Scene {sceneToLoad} loaded.");
 
             // Находим объект в загруженной сцене
-            worldBasement = FindObjectInScene(scene.name, objectPath);
+            worldBasement = FindObjectInScene(scene.name, "World");
             if (worldBasement == null)
             {
                 MelonLogger.Msg("World object not found.");
@@ -149,21 +174,51 @@ namespace MitaAI
 
             MelonLogger.Msg($"Object found: {worldBasement.name}");
 
-            // Находим нож
-            Transform knifeTransform = worldBasement.Find(knifePath);
-            if (knifeTransform == null)
-            {
-                MelonLogger.Msg("Knife object not found.");
-                yield break;
-            }
-
-            GameObject knife = knifeTransform.gameObject;
-
-            // Перемещаем нож к Mita
-            GameObject.Instantiate(knife, Mita.transform);
-            MelonLogger.Msg("Knife instantiated on Mita.");
 
             InitializeGameObjectsWhenReady();
+        }
+        private IEnumerator WaitForSceneAndInstantiate2(string sceneToLoad)
+        {
+            // Загружаем сцену
+            MelonLogger.Msg($"Loading scene: {sceneToLoad}");
+            additiveLoadedScenes.Add(sceneToLoad);
+            SceneManager.LoadScene(sceneToLoad, LoadSceneMode.Additive);
+
+            // Ожидание завершения загрузки сцены
+            Scene scene;
+            do
+            {
+                scene = SceneManager.GetSceneByName(sceneToLoad);
+                yield return null; // Ждем следующий кадр
+            } while (!scene.isLoaded);
+
+            MelonLogger.Msg($"Scene {sceneToLoad} loaded.");
+
+            // Находим объект в загруженной сцене
+            worldBackrooms2 = FindObjectInScene(scene.name, "World");
+            if (worldBackrooms2 == null)
+            {
+                MelonLogger.Msg("World object not found.");
+                yield break; // Прерываем выполнение, если объект не найден
+            }
+
+            MelonLogger.Msg($"Object found: {worldBackrooms2.name}");
+            try
+            {
+                ManekenTemplate = GameObject.Instantiate(TryfindChild(worldBackrooms2, "Quest/Quest 1 (Room 1 - Room 6)/Mita Maneken 1"),worldHouse);
+
+                ManekenTemplate.transform.position = Vector3.zero;
+                ManekenTemplate.transform.FindChild("MitaManeken 1").gameObject.GetComponent<Mob_Maneken>().speedNav = 4;
+                ManekenTemplate.SetActive(true);
+                manekenGame = true;
+                
+            }
+            catch (Exception ex)
+            {
+
+                MelonLogger.Msg($"WaitForSceneAndInstantiate2 found: {ex}");
+            }
+
         }
 
         public static Transform FindObjectInScene(string sceneName, string objectPath)
@@ -296,6 +351,20 @@ namespace MitaAI
             playerPerson.transform.parent.GetComponent<PlayerMove>().canRun = true;
             playerEffects = playerPerson.transform.parent.Find("HeadPlayer/MainCamera").gameObject.GetComponent<PlayerCameraEffects>();
             playerEffectsObject = playerPerson.transform.parent.Find("HeadPlayer/MainCamera/CameraPersons").gameObject;
+            blackScreen = GameObject.Find("Game/Interface/BlackScreen").GetComponent<BlackScreen>();
+            try
+            {
+                playerCamera = playerPerson.transform.parent.gameObject.transform.FindChild("HeadPlayer/MainCamera").gameObject;
+                LoggerInstance.Msg("Camera found" + playerCamera.name);
+            }
+            catch (Exception)
+            {
+
+                LoggerInstance.Msg("Camera not LoggerInstance.Msg(\"Camera found\" + playerCamera.name);found" + playerCamera.name);
+            }
+           
+
+
             LoggerInstance.Msg(Mita != null ? "Mita found!" : "Mita not found.");
             LoggerInstance.Msg(playerPerson != null ? "Player found!" : "Player not found.");
 
@@ -363,9 +432,10 @@ namespace MitaAI
 
             try
             {
-                AddBasement();
+                AddOtherScenes();
             }
             catch { }
+            MelonCoroutines.Start(CheckManekenGame());
 
             AllLoaded = true;
             
@@ -376,16 +446,6 @@ namespace MitaAI
 
         private void InitializeGameObjectsWhenReady()
         {
-            LoggerInstance.Msg("Waiting for worldBasement to be initialized...");
-
-            // Ждем, пока worldBasement не станет не null
-            //while (worldBasement == null)
-            //{
-                // Здесь можно поставить небольшую паузу, чтобы избежать блокировки потока
-              //  System.Threading.Thread.Sleep(100); // Задержка в 100 мс
-            //}
-
-            LoggerInstance.Msg("worldBasement is now initialized. Proceeding with object setup...");
 
             // Ваши действия после инициализации worldBasement
             try
@@ -428,7 +488,6 @@ namespace MitaAI
                 AnimationKiller = FindAndInstantiateObject(worldBasement, objectPath,"222");
                 //AnimationKiller.GetComponent<Location6_MitaKiller>().mita = Mita.transform;
                 TryTurnChild(worldBasement, "Sounds/Ambient 1", false);
-
                 AnimationKiller.SetActive(false);
                 //DeleteChildren(AnimationKiller.transform.Find("PositionsKill").gameObject);
 
@@ -462,7 +521,7 @@ namespace MitaAI
         {
             try
             {
-                return worldBasement.Find(path).gameObject;
+                return parent.Find(path).gameObject;
             }
             catch (Exception e)
             {
@@ -576,8 +635,55 @@ namespace MitaAI
                 Mita.AiShraplyStop();
             }
 
+
             base.OnFixedUpdate();
         }
+        private IEnumerator CheckManekenGame()
+        {
+            while (true)
+            {
+                try
+                {
+                    if (manekenGame)
+                    {
+                        if (!ManekenTemplate.active)
+                            yield break;
+
+                        
+                        if (blackScreen != null && playerCamera != null)
+                        {
+                            blackScreen.BlackScreenAlpha(0.75f);
+                            playerCamera.GetComponent<Camera>().enabled = false;
+                            MelonCoroutines.Start(ToggleComponentAfterTime(playerCamera.GetComponent<Camera>(), 0.75f)); // Отключит playerCamera через 1 секунду
+                        }
+
+                    }
+
+                    yield return new WaitForSeconds(7f); // Ждем 7 секунд перед следующим циклом
+                }
+                finally { }
+
+            }
+        }
+
+
+        public IEnumerator ToggleObjectActiveAfterTime(GameObject obj, float delay)
+        {
+            // Проверяем, не null ли объект
+            if (obj == null)
+            {
+                LoggerInstance.Msg("GameObject is null. Cannot toggle.");
+                yield break;
+            }
+
+            // Ждём заданное время
+            yield return new WaitForSeconds(delay);
+
+            // Переключаем активность объекта
+            obj.SetActive(!obj.activeSelf);
+            LoggerInstance.Msg($"GameObject {obj.name} is now {(obj.activeSelf ? "active" : "inactive")}");
+        }
+
 
         float getDistance()
         {
@@ -1005,11 +1111,9 @@ namespace MitaAI
             Mita.transform.SetPositionAndRotation(new Vector3(0,0,500),Quaternion.identity);
             yield return new WaitForSeconds(0.1f);
             killerObject.GetComponent<Location6_MitaKiller>().Kill(); // Вызываем метод Kill()
-            yield return new WaitForSeconds(0.1f);
+            yield return new WaitForSeconds(3f);
             killerObject.SetActive(false); // Включаем объект
             // Возвращаем Миту в исходное положение
-
-            yield return new WaitForSeconds(1f); // Ждем указанное время
             TryTurnChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom", true);
             Mita.transform.SetPositionAndRotation(originalPosition, originalRotation);
         }
@@ -1492,8 +1596,6 @@ namespace MitaAI
                 LoggerInstance.Warning($"Effect method {effectMethodName} not found on Il2Cpp component.");
             }
         }
-
-
 
         private EmotionType GetRandomEmotion()
         {
