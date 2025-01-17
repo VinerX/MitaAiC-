@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using MelonLoader;
 using UnityEngine;
 
+
+// Не работает, монобехавиур
 public class UnityMainThreadDispatcher : MonoBehaviour
 {
     private static UnityMainThreadDispatcher _instance;

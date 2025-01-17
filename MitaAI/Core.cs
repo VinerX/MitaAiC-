@@ -23,6 +23,7 @@ using UnityEngine.Playables;
 using System.Linq;
 using UnityEngine.Networking.Match;
 using System.Linq.Expressions;
+using Il2CppColorful;
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
 
@@ -32,6 +33,7 @@ namespace MitaAI
     {
         public MitaPerson Mita;
         public PlayerPerson playerPerson;
+        GameObject playerEffects;
         float distance = 0f;
 
         Location34_Communication Location34_Communication;
@@ -284,6 +286,10 @@ namespace MitaAI
             //Mita.gameObject.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled = true;
 
             playerPerson = GameObject.Find("Person")?.GetComponent<PlayerPerson>();
+            playerPerson.transform.parent.GetComponent<PlayerMove>().speedPlayer = 1f;
+            playerPerson.transform.parent.GetComponent<PlayerMove>().canRun = true;
+            playerEffects = playerPerson.transform.parent.Find("HeadPlayer/MainCamera/CameraPersons").gameObject;
+
             LoggerInstance.Msg(Mita != null ? "Mita found!" : "Mita not found.");
             LoggerInstance.Msg(playerPerson != null ? "Player found!" : "Player not found.");
 
@@ -779,6 +785,18 @@ namespace MitaAI
         private IEnumerator ShowDialogue(string part, int delay)
         {
 
+            try
+            {
+ 
+            }
+            catch (Exception)
+            {
+
+                LoggerInstance.Msg("No sucess");
+            }
+
+
+
             LoggerInstance.Msg("ShowDialogue");
 
             string modifiedPart = part;
@@ -1155,15 +1173,15 @@ namespace MitaAI
                 {
                     case "Смущаться":
                         //Mita.FaceColorUpdate();
-                        //Mita.FaceLayer(1);
+                        Mita.FaceLayer(1);
                         break;
                     case "Маска грусти":
                         //Mita.FaceColorUpdate();
-                        //Mita.FaceLayer(2);
+                        Mita.FaceLayer(2);
                         break;
                     default:
                         //Mita.FaceColorUpdate();
-                        //Mita.FaceLayer(0);
+                        Mita.FaceLayer(0);
                         break;
                 }
             }
@@ -1385,6 +1403,18 @@ namespace MitaAI
                     ifc.text = "";
                 }
             }
+
+
+            // Обрабатываем нажатие Enter для передачи текста в функцию
+            else if (Input.GetKeyDown(KeyCode.C) && !InputFieldComponent.activeSelf)
+            {
+                playerPerson.transform.parent.GetComponent<PlayerMove>().canSit = true;
+            }
+            else if (Input.GetKeyUp(KeyCode.C))
+            {
+                playerPerson.transform.parent.GetComponent<PlayerMove>().canSit = false;
+            }
+
 
         }
         private async void BlockInputFieldAsync(float t)
