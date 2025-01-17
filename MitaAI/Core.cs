@@ -24,6 +24,8 @@ using System.Linq;
 using UnityEngine.Networking.Match;
 using System.Linq.Expressions;
 using Il2CppColorful;
+using Il2CppInterop.Runtime;
+using Il2CppColorful;
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
 
@@ -33,7 +35,8 @@ namespace MitaAI
     {
         public MitaPerson Mita;
         public PlayerPerson playerPerson;
-        GameObject playerEffects;
+        PlayerCameraEffects playerEffects;
+        GameObject playerEffectsObject;
         float distance = 0f;
 
         Location34_Communication Location34_Communication;
@@ -288,8 +291,8 @@ namespace MitaAI
             playerPerson = GameObject.Find("Person")?.GetComponent<PlayerPerson>();
             playerPerson.transform.parent.GetComponent<PlayerMove>().speedPlayer = 1f;
             playerPerson.transform.parent.GetComponent<PlayerMove>().canRun = true;
-            playerEffects = playerPerson.transform.parent.Find("HeadPlayer/MainCamera/CameraPersons").gameObject;
-
+            playerEffects = playerPerson.transform.parent.Find("HeadPlayer/MainCamera").gameObject.GetComponent<PlayerCameraEffects>();
+            playerEffectsObject = playerPerson.transform.parent.Find("HeadPlayer/MainCamera/CameraPersons").gameObject;
             LoggerInstance.Msg(Mita != null ? "Mita found!" : "Mita not found.");
             LoggerInstance.Msg(playerPerson != null ? "Player found!" : "Player not found.");
 
@@ -781,7 +784,6 @@ namespace MitaAI
         }
 
 
-
         private IEnumerator ShowDialogue(string part, int delay)
         {
 
@@ -806,6 +808,7 @@ namespace MitaAI
             {
                 LoggerInstance.Msg("Begin try:"+ modifiedPart);
                 modifiedPart = SetFaceStyle(modifiedPart);
+                modifiedPart = ProcessPlayerEffects(modifiedPart);
                 (emotion,modifiedPart) = SetEmotionBasedOnResponse(modifiedPart);
                 LoggerInstance.Msg("After SetEmotionBasedOnResponse " + modifiedPart);
 
@@ -979,6 +982,8 @@ namespace MitaAI
                 LoggerInstance.Msg($"Error in ProcessCommandsAsync: {ex.Message}");
             }
         }
+
+        
         // Корутин для активации и деактивации объекта
         private IEnumerator ActivateAndDisableKiller(GameObject killerObject, float delay)
         {
@@ -1001,9 +1006,8 @@ namespace MitaAI
             killerObject.SetActive(false); // Включаем объект
             // Возвращаем Миту в исходное положение
 
-            //yield return new WaitForSeconds(delay); // Ждем указанное время
+            yield return new WaitForSeconds(1f); // Ждем указанное время
             TryTurnChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom", true);
-            yield return new WaitForSeconds(1f);
             Mita.transform.SetPositionAndRotation(originalPosition, originalRotation);
         }
 
@@ -1241,7 +1245,116 @@ namespace MitaAI
             return cleanedResponse;
         }
 
-       
+        private string ProcessPlayerEffects(string response)
+        {
+            List<string> effects = new List<string>();
+            string pattern = @"<v>(.*?)</v>";
+            MatchCollection matches = Regex.Matches(response, pattern);
+
+            foreach (Match match in matches)
+            {
+                if (match.Success)
+                {
+                    effects.Add(match.Groups[1].Value);
+                }
+            }
+
+            string result = Regex.Replace(response, @"<v>.*?</v>", "");
+            // Удаляем теги эмоций из текста
+            
+
+            try
+            {
+                foreach (string effectAndTime in effects)
+                {
+                    string[] parts = effectAndTime.Split(',');
+                    string effect = "";
+                    float time = 1f;
+                    if (parts.Length == 2 && float.TryParse(parts[1], out time))
+                    {
+                         effect = parts[0];
+                        // Теперь у нас есть переменные effect и time
+                        Console.WriteLine($"Effect: {effect}, Time: {time}");
+                    }
+
+                    Component effectComponent = null;
+                    try
+                    {
+                        switch (effect.ToLower())
+                        {
+                            case "Глитч":
+                                effectComponent = playerEffectsObject.GetComponentByName("Glitch");
+                                
+                                break;
+
+                            case "Телемост":
+                                effectComponent = playerEffectsObject.GetComponentByName("Glitch");
+                                break;
+                            case "ТВ-Удар":
+                                effectComponent = playerEffectsObject.GetComponentByName("Glitch");
+                                break;
+                            case "Помехи":
+                                effectComponent = playerEffectsObject.GetComponentByName("Glitch");
+                                break;
+                            case "Негатив":
+                                effectComponent = playerEffectsObject.GetComponentByName("Negative");
+                                break;
+                            case "Кровь":
+                                effectComponent = playerEffectsObject.GetComponentByName("FastVignette");
+                                break;
+                            default:
+                                
+                                break;
+                        }
+                        if (effectComponent != null && effectComponent is MonoBehaviour monoBehaviourComponent)
+                        {
+                            monoBehaviourComponent.enabled = true; // Включаем компонент
+                            MelonCoroutines.Start(ToggleComponentAfterTime(monoBehaviourComponent, time)); // Запускаем корутину
+                        }
+                        else
+                        {
+                            LoggerInstance.Msg($"Component {effectComponent?.GetType().Name} is not a MonoBehaviour or is null.");
+                        }
+
+                    }
+                    catch (Exception ex)
+                    {
+                        LoggerInstance.Msg($"Error processing effect '{effect}': {ex.Message}");
+                    }
+
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Msg($"Error in ProcessEffectsAsync: {ex.Message}");
+            }
+
+            return result;
+        }
+
+        // Корутинa для переключения активности компоненты
+        public IEnumerator ToggleComponentAfterTime(Component component, float delay)
+        {
+            if (component == null)
+            {
+                Debug.LogError("Component is null. Cannot toggle.");
+                yield break;
+            }
+
+            // Пробуем преобразовать Component в MonoBehaviour
+            if (component is MonoBehaviour monoBehaviourComponent)
+            {
+                yield return new WaitForSeconds(delay);
+
+                monoBehaviourComponent.enabled = !monoBehaviourComponent.enabled; // Переключаем активность
+                Debug.Log($"{monoBehaviourComponent.GetType().Name} is now {(monoBehaviourComponent.enabled ? "enabled" : "disabled")}");
+            }
+            else
+            {
+                Debug.LogError($"Component {component.GetType().Name} is not a MonoBehaviour. Cannot toggle.");
+            }
+        }
+
 
         private EmotionType GetRandomEmotion()
         {
