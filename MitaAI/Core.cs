@@ -211,7 +211,6 @@ namespace MitaAI
 
                 ManekenTemplate.transform.position = Vector3.zero;
                 ManekenTemplate.transform.FindChild("MitaManeken 1").gameObject.GetComponent<Mob_Maneken>().speedNav = 4;
-                manekenGame = true;
                 
             }
             catch (Exception ex)
@@ -436,7 +435,7 @@ namespace MitaAI
                 AddOtherScenes();
             }
             catch { }
-            MelonCoroutines.Start(CheckManekenGame());
+            
 
             AllLoaded = true;
             
@@ -1097,7 +1096,7 @@ namespace MitaAI
                                     switch (onlyCommand)
                                     {
                                         case "изменить моргание игрока":
-                                            blinkTimer = time;
+                                            blinkTimer = Math.Max(2,Math.Min(time,10));
                                             break;
                                         default:
                                             break;
@@ -1124,16 +1123,18 @@ namespace MitaAI
 
         public void spawnManeken()
         {
+            GameObject someManeken = GameObject.Instantiate(ManekenTemplate, worldHouse.Find("House"));
+            someManeken.transform.SetPositionAndRotation(GetRandomLoc().position,Quaternion.identity);
+            someManeken.SetActive(true);
+            activeMakens.Add(someManeken);
+
             if (!manekenGame)
             {
                 manekenGame = true;
-                CheckManekenGame();
+                MelonCoroutines.Start(CheckManekenGame());
             }
 
-            GameObject someManeken = GameObject.Instantiate(ManekenTemplate, worldHouse.Find("House"));
-            someManeken.transform.position = GetRandomLoc().position;
-            someManeken.SetActive(true);
-            activeMakens.Add(someManeken);
+            
 
         }
         public void removeAllMenekens()
