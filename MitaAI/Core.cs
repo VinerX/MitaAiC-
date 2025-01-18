@@ -43,7 +43,7 @@ namespace MitaAI
         float distance = 0f;
 
         Location34_Communication Location34_Communication;
-
+        Location21_World location21_World;
         Transform worldHouse;
         Transform worldBasement;
         Transform worldBackrooms2;
@@ -374,9 +374,19 @@ namespace MitaAI
             worldHouse = GameObject.Find("World")?.transform;
             World worldSettings = worldHouse.gameObject.GetComponent<World>();
 
-            LightingAndDaytime.Init(worldHouse.gameObject.AddComponent<Location21_World>());
-            MelonCoroutines.Start(UpdateLighitng());
+            location21_World = worldHouse.gameObject.AddComponent<Location21_World>();
+            LightingAndDaytime.Init(location21_World,worldHouse);
+            //MelonCoroutines.Start(UpdateLighitng());
 
+            try
+            {
+                location21_World.UpdateTimeDay();
+            }
+            catch (Exception)
+            {
+
+                LoggerInstance.Msg($"UpdateTimeDay error");
+            }
 
             worldSettings.limitFloor = -200f;
             if (worldHouse == null)
@@ -1129,15 +1139,39 @@ namespace MitaAI
                                 if (parts.Length == 2 && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out time))
                                 {
                                     onlyCommand = parts[0];
-                                    switch (onlyCommand)
+                                    switch (onlyCommand.ToLower())
                                     {
                                         case "изменить моргание игрока":
-                                            blinkTimer = Math.Max(2,Math.Min(time,10));
+                                            blinkTimer = Math.Max(2,Math.Min(time, 10));
+                                            break;
+                                        case "изменить время дня":
+                                            LightingAndDaytime.resetDayColor();
+                                            LightingAndDaytime.setTimeDay(time);
                                             break;
                                         default:
                                             break;
                                     }
-                                    LoggerInstance.Msg($"Succses command:{command} Time: {time}");
+                                    LoggerInstance.Msg($"Succses command:{onlyCommand} Time: {time}");
+                                }
+                                else if (parts.Length == 4)
+                                {
+                                    onlyCommand = parts[0];
+                                    float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float r);
+                                    float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float g);
+                                    float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out float b);
+                                    LoggerInstance.Msg($"Case command:{command} RGB: {r}{g}{b}");
+                                    switch (onlyCommand.ToLower())
+                                    {
+                                        case "изменить освещение":
+                                            LoggerInstance.Msg($"Case command:{onlyCommand} RGB: {r}{g}{b}");
+                                            LoggerInstance.Msg($"Corrected Case command:{onlyCommand} RGB: {r}{g}{b}");
+                                            LightingAndDaytime.applyColor(new Color(r, g, b, 1f));
+                                            break;
+
+                                        default:
+                                            break;
+                                    }
+                                    LoggerInstance.Msg($"Succses command:{onlyCommand} RGB: {r}{g}{b}");
                                 }
                                 else
                                 {
@@ -1974,15 +2008,7 @@ namespace MitaAI
             PlayerTalk(inputText);
             playerMessage = inputText;
 
-            try
-            {
-                Color randomColor = new Color(UnityEngine.Random.value, UnityEngine.Random.value, UnityEngine.Random.value);
-                LightingAndDaytime.ChangeQuadStreet(randomColor);
-            }
-            catch (Exception)
-            {
-
-            }
+   
 
 
         }

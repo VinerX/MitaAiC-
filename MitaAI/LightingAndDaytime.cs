@@ -12,8 +12,10 @@ namespace MitaAI
         private static GameObject newLightKitchen;
         public static Location21_World location21_World;
         public static LocationTimeDay TimeDay;
-        public static void Init(Location21_World _location21_World)
+        public static Transform worldHouse;
+        public static void Init(Location21_World _location21_World,Transform world)
         {
+            worldHouse = world;
             location21_World = _location21_World;
             location21_World.timeDay = new LocationTimeDay();
             
@@ -29,7 +31,7 @@ namespace MitaAI
             TimeDay.particlesDustRate.AddKey(1, 0);
             TimeDay.particlesDust = new UnityEngine.ParticleSystem[0];
             TimeDay.particleSunLight = new LocationTimeDayParticleLight[0];
-            TimeDay.sun = UnityEngine.GameObject.Find("Sun").GetComponent<UnityEngine.Light>();
+            
             TimeDay.colorMorning = new UnityEngine.Color(1, 0.7180627f, 0, 0.05f);
             TimeDay.colorSunMorning = new UnityEngine.Color(1, 0.7180627f, 0, 0.05f);
             TimeDay.colorDay = new UnityEngine.Color(1, 0.7631255f, 0.6367924f, 0.1490196f);
@@ -40,6 +42,7 @@ namespace MitaAI
             TimeDay.colorSunNight = new UnityEngine.Color(0.130073f, 0.3779935f, 0.745283f, 0.01f);
             TimeDay.colorSunParticleNight = new UnityEngine.Color(0, 0.3236856f, 0.3236856f, 0.1019608f);
 
+            TimeDay.sun = GameObject.Find("Sun").GetComponent<UnityEngine.Light>();
             //timeDay.colorNight = new UnityEngine.Color(0.0147073f, 1, 0.201f, 0.01f);
             // timeDay.colorSunNight = new UnityEngine.Color(0.0147073f, 1, 0.201f, 0.01f);
             // timeDay.colorNight = new UnityEngine.Color(0.02447287f, 0, 0.3207547f);
@@ -48,30 +51,37 @@ namespace MitaAI
             TimeDay.colorNight = new UnityEngine.Color(0.02447287f, 0, 0.3207547f);
             TimeDay.colorSunNight = new UnityEngine.Color(0.02447287f, 0, 0.3207547f);
 
-            location21_World.SetTimeDay(0.5f);
+
+            location21_World.day = 0.5f;
+            
+            //House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/
+
+
         }
+
+
 
         public static void ChangeLight(bool on)
         {
-            GameObject.Find("Lighting/Main Lighting/PointLight Realtime").SetActive(on);
-            GameObject.Find("Lighting/Toilet Lighting/PointLight Realtime").SetActive(on);
+            worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Main Lighting/PointLight Realtime").gameObject.SetActive(on);
+            worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Toilet Lighting/PointLight Realtime").gameObject.SetActive(on);
 
-            var bedroom = GameObject.Find("Lighting/Bedroom Lighting/PointLight Realtime");
+            var bedroom = worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Bedroom Lighting/PointLight Realtime").gameObject;
             bedroom.SetActive(on);
 
             if (newLightBedroom == null)
             {
-                newLightBedroom = GameObject.Instantiate(bedroom, bedroom.transform.parent);
+                newLightBedroom = GameObject.Instantiate(bedroom, bedroom.transform.parent).gameObject;
                 newLightBedroom.transform.position = new Vector3(bedroom.transform.position.x, bedroom.transform.position.z, 1);
             }
             newLightBedroom.SetActive(on);
 
-            var kitchen = GameObject.Find("Lighting/Kitchen Lighting/PointLight Realtime");
+            var kitchen = worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Kitchen Lighting/PointLight Realtime").gameObject;
             kitchen.SetActive(on);
 
             if (newLightKitchen == null)
             {
-                newLightKitchen = GameObject.Instantiate(kitchen, kitchen.transform.parent);
+                newLightKitchen = GameObject.Instantiate(kitchen, kitchen.transform.parent).gameObject;
                 newLightKitchen.transform.position = new Vector3(kitchen.transform.position.x, kitchen.transform.position.z, 2.5f);
             }
             newLightKitchen.SetActive(on);
@@ -88,17 +98,17 @@ namespace MitaAI
         {
             try
             {
-                ChangeMaterial(GameObject.Find("House/Main/QuadStreet 1"), color);
-                ChangeMaterial(GameObject.Find("House/Main/QuadStreet 2"), color);
-                ChangeMaterial(GameObject.Find("House/Kitchen/QuadStreet 1"), color);
-                ChangeMaterial(GameObject.Find("House/Kitchen/QuadStreet 2"), color);
-                ChangeMaterial(GameObject.Find("House/Kitchen/QuadStreet 3"), color);
-                ChangeMaterial(GameObject.Find("House/Bedroom/QuadStreet 1"), color);
+                ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Main/QuadStreet 1").gameObject, color);
+                ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Main/QuadStreet 2").gameObject, color);
+                ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Kitchen/QuadStreet 1").gameObject, color);
+                ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Kitchen/QuadStreet 2").gameObject, color);
+                ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Kitchen/QuadStreet 3").gameObject, color);
+                ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom/QuadStreet 1").gameObject, color);
             }
-            catch (Exception)
+            catch (Exception e)
             {
 
-                
+                MelonLoader.MelonLogger.Msg(e);
             }
 
         }
@@ -110,25 +120,25 @@ namespace MitaAI
 
         public static void UpdateParticleDust()
         {
-            //World/House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/
+            //House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/
             var particleSystems = new List<LocationTimeDayParticleLight>
             {
-                InitParticleLight(GameObject.Find("Lighting/Main Lighting/Sun Particles 1").GetComponent<ParticleSystem>()),
-                InitParticleLight(GameObject.Find("Lighting/Main Lighting/Sun Particles 2").GetComponent<ParticleSystem>()),
-                InitParticleLight(GameObject.Find("Lighting/Bedroom Lighting/Sun Particles").GetComponent<ParticleSystem>()),
-                InitParticleLight(GameObject.Find("Lighting/Kitchen Lighting/Sun Particles 1").GetComponent<ParticleSystem>()),
-                InitParticleLight(GameObject.Find("Lighting/Kitchen Lighting/Sun Particles 2").GetComponent<ParticleSystem>()),
-                InitParticleLight(GameObject.Find("Lighting/Kitchen Lighting/Sun Particles 3").GetComponent<ParticleSystem>())
+                InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Main Lighting/Sun Particles 1").gameObject.GetComponent<ParticleSystem>()),
+                InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Main Lighting/Sun Particles 2").gameObject.GetComponent<ParticleSystem>()),
+                InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Bedroom Lighting/Sun Particles").gameObject.GetComponent<ParticleSystem>()),
+                InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Kitchen Lighting/Sun Particles 1").gameObject.GetComponent<ParticleSystem>()),
+                InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Kitchen Lighting/Sun Particles 2").gameObject.GetComponent<ParticleSystem>()),
+                InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Kitchen Lighting/Sun Particles 3").gameObject.GetComponent<ParticleSystem>())
             };
 
             TimeDay.particleSunLight = particleSystems.ToArray();
 
             var dusts = new List<ParticleSystem>
             {
-                GameObject.Find("Lighting/Main Lighting/Particles Dust Main").GetComponent<ParticleSystem>(),
-                GameObject.Find("Lighting/Bedroom Lighting/Particles Dust Bedroom").GetComponent<ParticleSystem>(),
-                GameObject.Find("Lighting/Kitchen Lighting/Particles Dust Kitchen").GetComponent<ParticleSystem>(),
-                GameObject.Find("Lighting/Toilet Lighting/Particles Dust Toilet").GetComponent<ParticleSystem>()
+                worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Main Lighting/Particles Dust Main").gameObject.GetComponent<ParticleSystem>(),
+                worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Bedroom Lighting/Particles Dust Bedroom").gameObject.GetComponent<ParticleSystem>(),
+                worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Kitchen Lighting/Particles Dust Kitchen").gameObject.GetComponent<ParticleSystem>(),
+                worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Toilet Lighting/Particles Dust Toilet").gameObject.GetComponent<ParticleSystem>()
             };
 
             TimeDay.particlesDust = dusts.ToArray();
@@ -228,5 +238,24 @@ namespace MitaAI
 
             ChangeQuadStreet(Color.Lerp(TimeDay.colorSunParticleNight, TimeDay.colorSunParticleMorning, v12));
         }
+    
+        public static void applyColor(Color c)
+        {
+            location21_World.timeDay.colorDay = c;
+            location21_World.day = 0.5f;
+            location21_World.UpdateTimeDay();
+        }
+        public static void resetDayColor()
+        {
+            location21_World.timeDay.colorDay = new Color(1, 0.7631255f, 0.6367924f, 0.1490196f); 
+            location21_World.UpdateTimeDay();
+        }
+        public static void setTimeDay(float time)
+        {
+            resetDayColor();
+            location21_World.day = time;
+            location21_World.UpdateTimeDay();
+        }
+
     }
 }
