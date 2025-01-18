@@ -176,6 +176,7 @@ namespace MitaAI
 
             MelonLogger.Msg($"Object found: {worldBasement.name}");
 
+            
 
             InitializeGameObjectsWhenReady();
         }
@@ -372,6 +373,11 @@ namespace MitaAI
 
             worldHouse = GameObject.Find("World")?.transform;
             World worldSettings = worldHouse.gameObject.GetComponent<World>();
+
+            LightingAndDaytime.Init(worldHouse.gameObject.AddComponent<Location21_World>());
+            MelonCoroutines.Start(UpdateLighitng());
+
+
             worldSettings.limitFloor = -200f;
             if (worldHouse == null)
             {
@@ -612,6 +618,7 @@ namespace MitaAI
 
 
         bool FirstTime = true;
+        
         public override async void OnFixedUpdate()
         {
 
@@ -620,9 +627,13 @@ namespace MitaAI
             //LoggerInstance.Msg("2" + CurrentSceneName);
             if ( !AllLoaded ) { return;  };
 
+
+
             timer += Time.fixedDeltaTime;
             await UpdateBoringTimerAsync(Time.fixedDeltaTime);
 
+
+            
 
             if (timer >= Interval)
             {
@@ -638,6 +649,25 @@ namespace MitaAI
 
             base.OnFixedUpdate();
         }
+
+        private IEnumerator UpdateLighitng()
+        {
+            while (true)
+            {
+                try
+                {
+                    LightingAndDaytime.CheckDay();
+                    
+                }
+                catch (Exception e)
+                {
+
+                    LoggerInstance.Msg("Error LightingAndDaytime CheckDay" + e);
+                }
+                yield return new WaitForSeconds(2.3f); // Ждем 7 секунд перед следующим циклом
+            }
+        }
+
         private IEnumerator CheckManekenGame()
         {
             while (true)
@@ -1068,6 +1098,12 @@ namespace MitaAI
                             spawnManeken();
                             break;
                         case "отключить все манекены":
+                            TurnAllMenekens(false);
+                            break;
+                        case "включить все манекены":
+                            TurnAllMenekens(true);
+                            break;
+                        case "удалить все манекены":
                             removeAllMenekens();
                             break;
                         default:
@@ -1101,6 +1137,11 @@ namespace MitaAI
                                         default:
                                             break;
                                     }
+                                    LoggerInstance.Msg($"Succses command:{command} Time: {time}");
+                                }
+                                else
+                                {
+                                    LoggerInstance.Msg($"Fail command:{command} Time: {time}");
                                 }
                             }
 
@@ -1137,12 +1178,21 @@ namespace MitaAI
             
 
         }
+        public void TurnAllMenekens(bool on)
+        {
+            foreach (GameObject m in activeMakens)
+            {
+                if (on) m.transform.FindChild("MitaManeken 1").gameObject.GetComponent<Mob_Maneken>().ResetManeken();
+                else m.transform.FindChild("MitaManeken 1").gameObject.GetComponent<Mob_Maneken>().DeactivationManeken();
+
+            }
+            manekenGame = false;
+        }
         public void removeAllMenekens()
         {
-            foreach (var m in activeMakens)
+            foreach (GameObject m in activeMakens)
             {
-                m.transform.FindChild("MitaManeken 1").gameObject.GetComponent<Mob_Maneken>().DeactivationManeken();
-                DestroyObjecteAfterTime(m, 2f);
+                GameObject.Destroy(m);
             }
             manekenGame = false;
         }
@@ -1150,9 +1200,7 @@ namespace MitaAI
         // Корутин для активации и деактивации объекта
         private IEnumerator ActivateAndDisableKiller(GameObject killerObject, float delay)
         {
-            //GameObject point = new GameObject();
-            //point.transform.SetPositionAndRotation(playerPerson.transform.position, playerPerson.transform.rotation);
-            //point.transform.SetParent(killerObject.transform.Find("PositionsKill"));
+
             if (killerObject.transform.Find("PositionsKill").childCount > 0)
             {
                 killerObject.transform.Find("PositionsKill").GetChild(0).SetPositionAndRotation(playerPerson.transform.position, playerPerson.transform.rotation);
@@ -1685,7 +1733,7 @@ namespace MitaAI
                         if (roomIDMita == 4) hierarchy = ObjectHierarchyHelper.GetObjectsInRadiusAsTree(Mita.gameObject, 10f, worldBasement.Find("House").transform);
                         else hierarchy = ObjectHierarchyHelper.GetObjectsInRadiusAsTree(Mita.gameObject, 10f, worldHouse.Find("House").transform);
 
-                        LoggerInstance.Msg(hierarchy);
+                        //LoggerInstance.Msg(hierarchy);
                     }
                     catch (Exception e) { LoggerInstance.Msg("hierarchy error " + e); }
                 }
@@ -1918,12 +1966,24 @@ namespace MitaAI
         }
 
 
+        bool Test = false;
         // Пустышка для обработки ввода
         private void ProcessInput(string inputText)
         {
             LoggerInstance.Msg("Input received: " + inputText);
             PlayerTalk(inputText);
             playerMessage = inputText;
+
+            try
+            {
+                Color randomColor = new Color(UnityEngine.Random.value, UnityEngine.Random.value, UnityEngine.Random.value);
+                LightingAndDaytime.ChangeQuadStreet(randomColor);
+            }
+            catch (Exception)
+            {
+
+            }
+
 
         }
         public Sprite CreateBlackSprite(int width, int height)
