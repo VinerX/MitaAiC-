@@ -28,6 +28,7 @@ using Il2CppInterop.Runtime;
 using static MelonLoader.ICSharpCode.SharpZipLib.Zip.ZipEntryFactory;
 using System.Globalization;
 using Il2CppInterop.Runtime.InteropTypes;
+using static UnityEngine.UI.ScrollRect;
 
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
@@ -37,6 +38,16 @@ namespace MitaAI
     public class MitaCore : MelonMod
     {
         public MitaPerson Mita;
+
+        enum MovementStyles
+        {
+            walkNear=0,
+            follow=1,
+            stay=2
+
+        }
+        MovementStyles movementStyle = 0;
+
         public PlayerPerson playerPerson;
         PlayerCameraEffects playerEffects;
         GameObject playerEffectsObject;
@@ -846,8 +857,6 @@ namespace MitaAI
             
         }
 
-
-
         // Список для хранения созданных диалогов
         private List<GameObject> dialogPool = new List<GameObject>();
 
@@ -884,8 +893,6 @@ namespace MitaAI
             // После того как patch_to_sound_file стал не пустым, вызываем метод DisplayResponseAndEmotion
             DisplayResponseAndEmotion(response);
         }
-
-
 
         private void DisplayResponseAndEmotion(string response)
         {
@@ -1493,10 +1500,17 @@ namespace MitaAI
                 switch (MovementStyle)
                 {
                     case "Следовать рядом с игроком":
+                        movementStyle = MovementStyles.walkNear;
                         Location34_Communication.ActivationCanWalk(true);
+                        break;
+                    case "Следовать за игроком":
+                        movementStyle = MovementStyles.follow;
+                        Location34_Communication.ActivationCanWalk(false);
+                        MelonCoroutines.Start(FollowPlayer());
 
                         break;
                     case "Стоять на месте":
+                        movementStyle = MovementStyles.stay;
                         Location34_Communication.ActivationCanWalk(false);
                         break;
                     default:
@@ -1513,6 +1527,22 @@ namespace MitaAI
             // Возвращаем кортеж: лицо и очищенный текст
             return cleanedResponse;
         }
+        public IEnumerator FollowPlayer()
+        {
+            
+            while ( movementStyle == MovementStyles.follow)
+            {
+                if (getDistance()>2f)
+                {
+                    Mita.AiWalkToTarget(playerPerson.transform);
+                }
+
+                yield return new WaitForSeconds(2f);
+            }
+
+            
+        }
+
 
         private string ProcessPlayerEffects(string response)
         {
@@ -1806,7 +1836,24 @@ namespace MitaAI
             }
             
         }
+        private string formMessage()
+        {
+            string message =
+                $"Актуальная информация" +
+                $"Расстояние до игрока {getDistance()} м" +
+                $"Игрок в {1}" +
+                $"Ты в {1}" +
+                $"Рядом с тобой{hierarchy}" +
+                $"" +
+                $""
 
+            distance = ;
+            roomIDPlayer = GetRoomID(playerPerson.transform);
+            roomIDMita = GetRoomID(Mita.transform);
+            |||{distance}|||{roomIDPlayer}|||{roomIDMita}|||{hierarchy}";
+            
+            return 
+        }
 
         private async Task<bool> TryConnectAsync(Socket socket, string address, int port, int maxRetries = 3, int delayBetweenRetries = 2000)
         {
