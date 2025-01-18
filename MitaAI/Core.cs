@@ -50,6 +50,7 @@ namespace MitaAI
 
 
         GameObject ManekenTemplate;
+        List<GameObject> activeMakens = new List<GameObject>();
 
         Menu MainMenu;
         private GameObject CustomDialog;
@@ -63,6 +64,7 @@ namespace MitaAI
 
         private const float Interval = 0.66f;
         private float timer = 0f;
+        float blinkTimer = 7f;
 
         Vector3 lastPosition;
 
@@ -201,7 +203,7 @@ namespace MitaAI
                 MelonLogger.Msg("World object not found.");
                 yield break; // Прерываем выполнение, если объект не найден
             }
-
+            worldBackrooms2.gameObject.SetActive(false);
             MelonLogger.Msg($"Object found: {worldBackrooms2.name}");
             try
             {
@@ -209,7 +211,6 @@ namespace MitaAI
 
                 ManekenTemplate.transform.position = Vector3.zero;
                 ManekenTemplate.transform.FindChild("MitaManeken 1").gameObject.GetComponent<Mob_Maneken>().speedNav = 4;
-                ManekenTemplate.SetActive(true);
                 manekenGame = true;
                 
             }
@@ -644,22 +645,16 @@ namespace MitaAI
             {
                 try
                 {
-                    if (manekenGame)
-                    {
-                        if (!ManekenTemplate.active)
-                            yield break;
-
+                    if (!manekenGame) yield break;
                         
-                        if (blackScreen != null && playerCamera != null)
-                        {
-                            blackScreen.BlackScreenAlpha(0.75f);
-                            playerCamera.GetComponent<Camera>().enabled = false;
-                            MelonCoroutines.Start(ToggleComponentAfterTime(playerCamera.GetComponent<Camera>(), 0.75f)); // Отключит playerCamera через 1 секунду
-                        }
-
+                    if (blackScreen != null && playerCamera != null)
+                    {
+                        blackScreen.BlackScreenAlpha(0.75f);
+                        playerCamera.GetComponent<Camera>().enabled = false;
+                        MelonCoroutines.Start(ToggleComponentAfterTime(playerCamera.GetComponent<Camera>(), 0.75f)); // Отключит playerCamera через 1 секунду
                     }
 
-                    yield return new WaitForSeconds(7f); // Ждем 7 секунд перед следующим циклом
+                    yield return new WaitForSeconds(blinkTimer); // Ждем 7 секунд перед следующим циклом
                 }
                 finally { }
 
@@ -682,6 +677,21 @@ namespace MitaAI
             // Переключаем активность объекта
             obj.SetActive(!obj.activeSelf);
             LoggerInstance.Msg($"GameObject {obj.name} is now {(obj.activeSelf ? "active" : "inactive")}");
+        }
+
+        public IEnumerator DestroyObjecteAfterTime(GameObject obj, float delay)
+        {
+            // Проверяем, не null ли объект
+            if (obj == null)
+            {
+                LoggerInstance.Msg("GameObject is null. Cannot toggle.");
+                yield break;
+            }
+
+            // Ждём заданное время
+            yield return new WaitForSeconds(delay);
+
+            GameObject.Destroy(obj);
         }
 
 
@@ -796,7 +806,6 @@ namespace MitaAI
             }
             
         }
-
 
 
 
@@ -1026,73 +1035,117 @@ namespace MitaAI
 
         private void ProcessCommands(List<string> commands)
         {
-            try
+
+            foreach (string command in commands)
             {
-                foreach (string command in commands)
+                try
                 {
-                    try
+                    switch (command.ToLower())
                     {
-                        switch (command.ToLower())
-                        {
-                            case "подойти к игроку":
-                                Mita.AiWalkToTarget(playerPerson.transform);
-                                Location34_Communication.indexSwitchAnimation = 1;
-                                break;
+                        case "подойти к игроку":
+                            Mita.AiWalkToTarget(playerPerson.transform);
+                            Location34_Communication.indexSwitchAnimation = 1;
+                            break;
 
-                            case "подойти к случайной точке":
-                                Mita.AiWalkToTarget( GetRandomLoc() );
-                                Location34_Communication.indexSwitchAnimation = 1;
-                                break;
-                            case "телепортироваться к случайной точке":
-                                Mita.MitaTeleport( GetRandomLoc() );
-                                Location34_Communication.indexSwitchAnimation = 1;
-                                break;
-                            case "телепортироваться к игроку":
-                                Mita.MitaTeleport(playerPerson.transform);
-                                Location34_Communication.indexSwitchAnimation = 1;
-                                break;
-                            case "зарезать игрока":
-                                MelonCoroutines.Start(ActivateAndDisableKiller(AnimationKiller, 3f)); // Время выключения - 3 секунды
-                                break;
-                            case "выключить игрока":
-                                MainMenu.ButtonLoadScene("SceneMenu");
-                                break;
-                            default:
-                                if (command.Contains("PositionMita"))
+                        case "подойти к случайной точке":
+                            Mita.AiWalkToTarget( GetRandomLoc() );
+                            Location34_Communication.indexSwitchAnimation = 1;
+                            break;
+                        case "телепортироваться к случайной точке":
+                            Mita.MitaTeleport( GetRandomLoc() );
+                            Location34_Communication.indexSwitchAnimation = 1;
+                            break;
+                        case "телепортироваться к игроку":
+                            Mita.MitaTeleport(playerPerson.transform);
+                            Location34_Communication.indexSwitchAnimation = 1;
+                            break;
+                        case "зарезать игрока":
+                            MelonCoroutines.Start(ActivateAndDisableKiller(AnimationKiller, 3f)); // Время выключения - 3 секунды
+                            break;
+                        case "выключить игрока":
+                            MainMenu.ButtonLoadScene("SceneMenu");
+                            break;
+                        case "заспавнить манекен":
+                            spawnManeken();
+                            break;
+                        case "отключить все манекены":
+                            removeAllMenekens();
+                            break;
+                        default:
+                            if (command.Contains("PositionMita"))
+                            {
+                                try
                                 {
-                                    try
+                                    GameObject point = GameObject.Find(command);
+                                    Mita.MitaTeleport(point.transform);
+                                    Location34_Communication.indexSwitchAnimation = 1;
+                                }
+                                catch (Exception e)
+                                {
+                                    LoggerInstance.Msg($"Unknown point: {command}");
+                                }
+                            }
+                            else if (command.Contains(","))
+                            {
+                                string[] parts = command.Split(',');
+                                string onlyCommand = "";
+                                float time = 1f;
+
+                                if (parts.Length == 2 && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out time))
+                                {
+                                    onlyCommand = parts[0];
+                                    switch (onlyCommand)
                                     {
-                                        GameObject point = GameObject.Find(command);
-                                        Mita.MitaTeleport(point.transform);
-                                        Location34_Communication.indexSwitchAnimation = 1;
-                                    }
-                                    catch (Exception e)
-                                    {
-                                        LoggerInstance.Msg($"Unknown point: {command}");
+                                        case "изменить моргание игрока":
+                                            blinkTimer = time;
+                                            break;
+                                        default:
+                                            break;
                                     }
                                 }
-                                else
-                                {
-                                    LoggerInstance.Msg($"Unknown command: {command}");
-                                }
+                            }
+
+                            else
+                            {
+                                LoggerInstance.Msg($"Unknown command: {command}");
+                            }
                                 
-                                break;
-                        }
+                            break;
                     }
-                    catch (Exception ex)
-                    {
-                        LoggerInstance.Msg($"Error processing command '{command}': {ex.Message}");
-                    }
-
                 }
+                catch (Exception ex)
+                {
+                    LoggerInstance.Msg($"Error processing command '{command}': {ex.Message}");
+                }
+
             }
-            catch (Exception ex)
-            {
-                LoggerInstance.Msg($"Error in ProcessCommandsAsync: {ex.Message}");
-            }
+
         }
 
-        
+        public void spawnManeken()
+        {
+            if (!manekenGame)
+            {
+                manekenGame = true;
+                CheckManekenGame();
+            }
+
+            GameObject someManeken = GameObject.Instantiate(ManekenTemplate, worldHouse.Find("House"));
+            someManeken.transform.position = GetRandomLoc().position;
+            someManeken.SetActive(true);
+            activeMakens.Add(someManeken);
+
+        }
+        public void removeAllMenekens()
+        {
+            foreach (var m in activeMakens)
+            {
+                m.transform.FindChild("MitaManeken 1").gameObject.GetComponent<Mob_Maneken>().DeactivationManeken();
+                DestroyObjecteAfterTime(m, 2f);
+            }
+            manekenGame = false;
+        }
+
         // Корутин для активации и деактивации объекта
         private IEnumerator ActivateAndDisableKiller(GameObject killerObject, float delay)
         {
