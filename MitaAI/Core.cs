@@ -387,6 +387,7 @@ namespace MitaAI
 
             location21_World = worldHouse.gameObject.AddComponent<Location21_World>();
             LightingAndDaytime.Init(location21_World,worldHouse);
+            location21_World.day = 0.5f;
             //MelonCoroutines.Start(UpdateLighitng());
 
             try
@@ -1836,24 +1837,7 @@ namespace MitaAI
             }
             
         }
-        private string formMessage()
-        {
-            string message =
-                $"Актуальная информация" +
-                $"Расстояние до игрока {getDistance()} м" +
-                $"Игрок в {1}" +
-                $"Ты в {1}" +
-                $"Рядом с тобой{hierarchy}" +
-                $"" +
-                $""
 
-            distance = ;
-            roomIDPlayer = GetRoomID(playerPerson.transform);
-            roomIDMita = GetRoomID(Mita.transform);
-            |||{distance}|||{roomIDPlayer}|||{roomIDMita}|||{hierarchy}";
-            
-            return 
-        }
 
         private async Task<bool> TryConnectAsync(Socket socket, string address, int port, int maxRetries = 3, int delayBetweenRetries = 2000)
         {
