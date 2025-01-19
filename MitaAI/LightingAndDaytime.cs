@@ -323,8 +323,19 @@ namespace MitaAI
         }
         public static void resetDayColor()
         {
-            TimeDay.colorDay = new Color(1, 0.7631255f, 0.6367924f, 0.1490196f); 
-            location21_World.UpdateTimeDay();
+            if (location21_World.timeDay != null){
+                try
+                {
+                    location21_World.timeDay.colorDay = new Color(1, 0.7631255f, 0.6367924f, 0.1490196f);
+                }
+                catch (Exception)
+                {
+
+                    
+                }
+            }
+            
+
         }
         public static void setTimeDay(float time)
         {
@@ -333,11 +344,13 @@ namespace MitaAI
                 MelonLoader.MelonLogger.Warning("NET TUT ETOGO OBJECTA!!!");
             }
 
-            //resetDayColor();
+            resetDayColor();
             location21_World.day = time;
             MelonLoader.MelonLogger.Warning($"000 Time {time}");
             location21_World.SetTimeDay(time);
             location21_World.UpdateTimeDay();
+
+            CheckDay();
         }
 
     }

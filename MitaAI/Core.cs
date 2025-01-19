@@ -30,6 +30,7 @@ using System.Globalization;
 using Il2CppInterop.Runtime.InteropTypes;
 using static UnityEngine.UI.ScrollRect;
 
+
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
 
@@ -81,7 +82,9 @@ namespace MitaAI
         Vector3 lastPosition;
 
         string playerMessage = "";
-        
+        Queue<string> systemMessages = new Queue<string>();
+        Queue<string> systemInfos = new Queue<string>();
+
         Queue<string> patches_to_sound_file = new Queue<string>();
         string patch_to_sound_file = "";
         
@@ -766,11 +769,19 @@ namespace MitaAI
         {
             
             string dataToSent = "waiting";
+            string dataToSentSystem = "-";
+            string info = "-";
             if (playerMessage != "")
             {
                 await ResetBoringTimerAsync();
                 dataToSent = playerMessage;
                 playerMessage = "";
+            }
+            else if (systemMessages.Count>0)
+            {
+                LoggerInstance.Msg("HAS SYSTEM MESSAGES");
+                await ResetBoringTimerAsync();
+                dataToSentSystem = systemMessages.Dequeue();
             }
             else if (MitaBoringtimer >= MitaBoringInterval)
             {
@@ -780,7 +791,12 @@ namespace MitaAI
             string response = "";
             try
             {
-                response = await GetResponseFromPythonSocketAsync(dataToSent);
+                if (systemInfos.Count>0)
+                {
+                   LoggerInstance.Msg("HAS SYSTEM INFOS");
+                  info = systemInfos.Dequeue();
+                }
+                response = await GetResponseFromPythonSocketAsync(dataToSent,dataToSentSystem,info);
                 if (response != "")
                 {
                     LoggerInstance.Msg("after GetResponseFromPythonSocketAsync");
@@ -1097,6 +1113,7 @@ namespace MitaAI
             {
                 try
                 {
+                    Transform loc;
                     switch (command.ToLower())
                     {
                         case "подойти к игроку":
@@ -1105,11 +1122,15 @@ namespace MitaAI
                             break;
 
                         case "подойти к случайной точке":
-                            Mita.AiWalkToTarget( GetRandomLoc() );
+                            loc = GetRandomLoc();
+                            systemInfos.Enqueue($"Ты пошла к точке");
+                            Mita.AiWalkToTarget( loc );
                             Location34_Communication.indexSwitchAnimation = 1;
                             break;
                         case "телепортироваться к случайной точке":
-                            Mita.MitaTeleport( GetRandomLoc() );
+                            loc = GetRandomLoc();
+                            systemMessages.Enqueue($"Ты успешно телепортировалась!");
+                            Mita.MitaTeleport(loc);
                             Location34_Communication.indexSwitchAnimation = 1;
                             break;
                         case "телепортироваться к игроку":
@@ -1236,13 +1257,15 @@ namespace MitaAI
         }
         public void TurnAllMenekens(bool on)
         {
+            if (activeMakens.Count <= 0) return;
+            
             foreach (GameObject m in activeMakens)
             {
                 if (on) m.transform.FindChild("MitaManeken 1").gameObject.GetComponent<Mob_Maneken>().ResetManeken();
                 else m.transform.FindChild("MitaManeken 1").gameObject.GetComponent<Mob_Maneken>().DeactivationManeken();
 
             }
-            manekenGame = false;
+            manekenGame = on;
         }
         public void removeAllMenekens()
         {
@@ -1785,7 +1808,7 @@ namespace MitaAI
             return emotions[randomIndex];
         }
 
-        public async Task<string> GetResponseFromPythonSocketAsync(string input)
+        public async Task<string> GetResponseFromPythonSocketAsync(string input, string dataToSentSystem,string systemInfo)
         {
             // Ожидаем, чтобы получить доступ к ресурсу (сокету)
             
@@ -1822,12 +1845,12 @@ namespace MitaAI
                 distance = getDistance();
                 roomIDPlayer = GetRoomID(playerPerson.transform);
                 roomIDMita = GetRoomID(Mita.transform);
-                input = $"{input}|||{distance}|||{roomIDPlayer}|||{roomIDMita}|||{hierarchy}";
+                string total_input = $"{input}|||{dataToSentSystem}|||{systemInfo}|||{distance}|||{roomIDPlayer}|||{roomIDMita}|||{hierarchy}";
 
-                byte[] messageBytes = Encoding.UTF8.GetBytes(input);
+                byte[] messageBytes = Encoding.UTF8.GetBytes(total_input);
                 await clientSocket.SendAsync(messageBytes, SocketFlags.None);
 
-                byte[] buffer = new byte[2500];
+                byte[] buffer = new byte[3000];
                 try
                 {
                     int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
