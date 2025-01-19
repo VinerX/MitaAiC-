@@ -90,9 +90,9 @@ namespace MitaAI
         
         string hierarchy = "";
 
-        
 
-        List<string> RequiredSceneNames = new List<string> { "Scene 4 - StartSecret", "Scene 3 - WeTogether" };
+
+        string requiredSceneName = "Scene 4 - StartSecret";
         string CurrentSceneName;
 
         private HashSet<string> additiveLoadedScenes = new HashSet<string>();
@@ -133,6 +133,16 @@ namespace MitaAI
         }
 
         bool manekenGame = false;
+
+
+        public void sendSystemMessage(string m)
+        {
+            systemMessages.Enqueue(m);
+        }
+        public void sendSystemInfo(string m)
+        {
+            systemInfos.Enqueue(m);
+        }
 
         public void AddOtherScenes()
         {
@@ -263,6 +273,16 @@ namespace MitaAI
             MelonLoader.MelonLogger.Msg($" {objectPath} not found in {sceneName}.");
             return null;
         }
+
+        public override void OnSceneWasUnloaded(int buildIndex, string sceneName)
+        {
+            if (sceneName == requiredSceneName)
+            {
+                sendSystemInfo("Игрок покинул твой уровень");
+            }
+            base.OnSceneWasUnloaded(buildIndex, sceneName);
+        }
+
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
 
         {
@@ -281,11 +301,13 @@ namespace MitaAI
 
             if (CurrentSceneName == "AiHasto")
             {
+                
                 //GameObject GameObject = GameObject.Find("MenuGame")>
             }
 
             else if (CurrentSceneName == "SceneMenu")
             {
+                sendSystemInfo("Игрок в меню");
                 MainMenu = GameObject.Find("MenuGame").GetComponent<Menu>();
                 //MainMenu.Alternative();
                 //SceneManager.LoadScene("Scene 4 - StartSecret");
@@ -294,7 +316,7 @@ namespace MitaAI
 
             }
 
-            else if (RequiredSceneNames.Contains(CurrentSceneName) )
+            else if ( requiredSceneName == CurrentSceneName )
             {
                 try
                 {
@@ -304,6 +326,7 @@ namespace MitaAI
                     Location34_Communication.play = true;
                     Location34_Communication.mitaCanWalk = true;
                     Location34_Communication.indexSwitchAnimation = 1;
+                    Mita.AiShraplyStop();
                     Trigger.SetActive(false);
 
                     CollectChildObjects(Location34_CommunicationObject);
@@ -471,9 +494,9 @@ namespace MitaAI
             
 
             AllLoaded = true;
-            
 
-            
+            sendSystemMessage("Игрок только что загрузился в твой уровень.");
+
 
         }
 
@@ -794,7 +817,7 @@ namespace MitaAI
                 if (systemInfos.Count>0)
                 {
                    LoggerInstance.Msg("HAS SYSTEM INFOS");
-                  info = systemInfos.Dequeue();
+                    info = systemInfos.Dequeue();
                 }
                 response = await GetResponseFromPythonSocketAsync(dataToSent,dataToSentSystem,info);
                 if (response != "")
@@ -905,6 +928,7 @@ namespace MitaAI
                 if (patches_to_sound_file.Count > 0)
                 {
                     patch_to_sound_file = patches_to_sound_file.Dequeue();
+                    patches_to_sound_file.Clear();
                 }
 
                 elapsedTime += Time.deltaTime; // Увеличиваем счетчик времени
@@ -948,7 +972,7 @@ namespace MitaAI
                     }
                 }
 
-                int delay = 4000 * modifiedResponse.Length / 50;
+                int delay = 3500 * modifiedResponse.Length / 50;
                 MelonCoroutines.Start(PlayMitaSound(delay, audioClip));
 
                 List<string> dialogueParts = SplitText(modifiedResponse, maxLength: 50);
@@ -977,18 +1001,6 @@ namespace MitaAI
 
         private IEnumerator ShowDialogue(string part, int delay)
         {
-
-            try
-            {
- 
-            }
-            catch (Exception)
-            {
-
-                LoggerInstance.Msg("No sucess");
-            }
-
-
 
             LoggerInstance.Msg("ShowDialogue");
 
@@ -1123,13 +1135,13 @@ namespace MitaAI
 
                         case "подойти к случайной точке":
                             loc = GetRandomLoc();
-                            systemInfos.Enqueue($"Ты пошла к точке");
+                            sendSystemInfo($"Ты пошла к {loc.name}");
                             Mita.AiWalkToTarget( loc );
                             Location34_Communication.indexSwitchAnimation = 1;
                             break;
                         case "телепортироваться к случайной точке":
                             loc = GetRandomLoc();
-                            systemMessages.Enqueue($"Ты успешно телепортировалась!");
+                            sendSystemInfo($"Ты успешно телепортировалась к {loc.name}");
                             Mita.MitaTeleport(loc);
                             Location34_Communication.indexSwitchAnimation = 1;
                             break;
@@ -1154,6 +1166,9 @@ namespace MitaAI
                             break;
                         case "удалить все манекены":
                             removeAllMenekens();
+                            break;
+                        case "продолжить фразу":
+                            systemMessages.Enqueue("Ты продолжаешь фразу или мысль");
                             break;
                         default:
                             if (command.Contains("PositionMita"))
@@ -1293,6 +1308,7 @@ namespace MitaAI
             yield return new WaitForSeconds(0.1f);
             killerObject.GetComponent<Location6_MitaKiller>().Kill(); // Вызываем метод Kill()
             yield return new WaitForSeconds(3f);
+            systemMessages.Enqueue("Ты успешно зарезала игрока и он где-то зареспавнился");
             killerObject.SetActive(false); // Включаем объект
             // Возвращаем Миту в исходное положение
             TryTurnChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom", true);
