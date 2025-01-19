@@ -325,7 +325,7 @@
 	</ItemGroup>
 
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
-	  <Exec Command="xcopy /y &quot;$(OutDir)\MitaAI.dll&quot; &quot;E:\Games\MiSide\Mods\&quot;" />
+	  <Exec Command="xcopy /y &quot;$(OutDir)\MitaAI.dll&quot; &quot;E:\Games\steam2\steamapps\common\MiSide\Mods&quot;" />
 	</Target>
 	
 </Project>

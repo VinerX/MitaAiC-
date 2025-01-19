@@ -43,7 +43,8 @@ namespace MitaAI
         {
             walkNear=0,
             follow=1,
-            stay=2
+            stay=2,
+            noklip=3
 
         }
         MovementStyles movementStyle = 0;
@@ -283,8 +284,9 @@ namespace MitaAI
             else if (CurrentSceneName == "SceneMenu")
             {
                 MainMenu = GameObject.Find("MenuGame").GetComponent<Menu>();
-                MainMenu.Alternative();
-                MainMenu.ButtonLoadScene("Scene 4 - StartSecret");
+                //MainMenu.Alternative();
+                //SceneManager.LoadScene("Scene 4 - StartSecret");
+                //MainMenu.ButtonLoadScene("Scene 4 - StartSecret");
                 //MainMenu.ButtonLoadScene("Scene 3 - WeTogether");
 
             }
@@ -387,7 +389,7 @@ namespace MitaAI
 
             location21_World = worldHouse.gameObject.AddComponent<Location21_World>();
             LightingAndDaytime.Init(location21_World,worldHouse);
-            location21_World.day = 0.5f;
+            MelonCoroutines.Start(StartDayTime());
             //MelonCoroutines.Start(UpdateLighitng());
 
             try
@@ -674,6 +676,7 @@ namespace MitaAI
 
         private IEnumerator UpdateLighitng()
         {
+            yield return new WaitForSeconds(1f);
             while (true)
             {
                 try
@@ -689,6 +692,13 @@ namespace MitaAI
                 yield return new WaitForSeconds(2.3f); // Ждем 7 секунд перед следующим циклом
             }
         }
+
+        private IEnumerator StartDayTime()
+        {
+            yield return new WaitForSeconds(3f);
+            LightingAndDaytime.setTimeDay(0.5f);
+        }
+
 
         private IEnumerator CheckManekenGame()
         {
@@ -1143,9 +1153,10 @@ namespace MitaAI
                                 string[] parts = command.Split(',');
                                 string onlyCommand = "";
                                 float time = 1f;
-
+                                LoggerInstance.Msg("777");
                                 if (parts.Length == 2 && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out time))
                                 {
+                                    LoggerInstance.Msg("888");
                                     onlyCommand = parts[0];
                                     switch (onlyCommand.ToLower())
                                     {
@@ -1153,8 +1164,11 @@ namespace MitaAI
                                             blinkTimer = Math.Max(2,Math.Min(time, 10));
                                             break;
                                         case "изменить время дня":
-                                            LightingAndDaytime.resetDayColor();
+                                            LoggerInstance.Msg("999");
+                                            
+                                            LoggerInstance.Msg("000");
                                             LightingAndDaytime.setTimeDay(time);
+                                            LoggerInstance.Msg($"case Succses command:{onlyCommand} Time: {time}");
                                             break;
                                         default:
                                             break;

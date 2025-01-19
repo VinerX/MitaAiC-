@@ -1,4 +1,5 @@
 ﻿using Il2Cpp;
+using MelonLoader;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -13,6 +14,8 @@ namespace MitaAI
         public static Location21_World location21_World;
         public static LocationTimeDay TimeDay;
         public static Transform worldHouse;
+
+        static Light sun;
         public static void Init(Location21_World _location21_World,Transform world)
         {
             worldHouse = world;
@@ -42,7 +45,15 @@ namespace MitaAI
             TimeDay.colorSunNight = new UnityEngine.Color(0.130073f, 0.3779935f, 0.745283f, 0.01f);
             TimeDay.colorSunParticleNight = new UnityEngine.Color(0, 0.3236856f, 0.3236856f, 0.1019608f);
 
-            TimeDay.sun = GameObject.Find("Sun").GetComponent<UnityEngine.Light>();
+            sun = worldHouse.Find("House/Sun").GetComponent<UnityEngine.Light>();
+            if (sun != null) sun.color = Color.red;
+            else MelonLoader.MelonLogger.Msg("Sun Error ");
+
+            
+
+
+
+
             //timeDay.colorNight = new UnityEngine.Color(0.0147073f, 1, 0.201f, 0.01f);
             // timeDay.colorSunNight = new UnityEngine.Color(0.0147073f, 1, 0.201f, 0.01f);
             // timeDay.colorNight = new UnityEngine.Color(0.02447287f, 0, 0.3207547f);
@@ -51,20 +62,42 @@ namespace MitaAI
             TimeDay.colorNight = new UnityEngine.Color(0.02447287f, 0, 0.3207547f);
             TimeDay.colorSunNight = new UnityEngine.Color(0.02447287f, 0, 0.3207547f);
 
-
-            location21_World.day = 0.5f;
-            
             //House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/
+            try
+            {
+                mainLighting = worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Main Lighting/").gameObject;
+                toiletLighting = worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Toilet Lighting/").gameObject;
+            }
+            catch (Exception)
+            {
+                MelonLoader.MelonLogger.Msg("mainLighting or toiletLighting error ");
+            }
 
-
+            MelonLogger.Msg("End init lighting");
         }
 
 
+        private static GameObject mainLighting;
+        private static GameObject toiletLighting;
+        private static GameObject bedroomLighting;
+        private static GameObject kitchenLighting;
 
         public static void ChangeLight(bool on)
         {
-            worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Main Lighting/PointLight Realtime").gameObject.SetActive(on);
-            worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Toilet Lighting/PointLight Realtime").gameObject.SetActive(on);
+            if (mainLighting != null) mainLighting.SetActive(on);
+            if (toiletLighting != null) toiletLighting.SetActive(on);
+            //if (bedroomLighting != null) bedroomLighting.SetActive(on);
+            //if (newLightBedroom != null) newLightBedroom.SetActive(on);
+            //if (kitchenLighting != null) kitchenLighting.SetActive(on);
+            //if (newLightKitchen != null) newLightKitchen.SetActive(on);
+        }
+        public static void ChangeLightOld(bool on)
+        {
+            mainLighting = worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Main Lighting/").gameObject;
+            toiletLighting = worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Toilet Lighting/").gameObject;
+            //bedroomLighting = worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Bedroom Lighting/PointLight Realtime").gameObject;
+            //kitchenLighting = worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Kitchen Lighting/PointLight Realtime").gameObject;
+
 
             var bedroom = worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Bedroom Lighting/PointLight Realtime").gameObject;
             bedroom.SetActive(on);
@@ -90,20 +123,29 @@ namespace MitaAI
         private static void ChangeMaterial(GameObject gameObject, Color color)
         {
             var mat = gameObject.GetComponent<MeshRenderer>().material;
-            mat.SetColor("_Color", color);
-            mat.SetColor("_EmissionColor", color);
+            try
+            {
+                mat.SetColor("_Color", color);
+                mat.SetColor("_EmissionColor", color);
+            }
+            catch (Exception e)
+            {
+
+                MelonLoader.MelonLogger.Msg("ChangeMaterial error " + e);
+            }
+
         }
 
         public static void ChangeQuadStreet(Color color)
         {
             try
             {
-                ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Main/QuadStreet 1").gameObject, color);
+                ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom/QuadStreet 1").gameObject, color);
                 ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Main/QuadStreet 2").gameObject, color);
                 ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Kitchen/QuadStreet 1").gameObject, color);
-                ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Kitchen/QuadStreet 2").gameObject, color);
-                ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Kitchen/QuadStreet 3").gameObject, color);
-                ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom/QuadStreet 1").gameObject, color);
+                //ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Kitchen/QuadStreet 2").gameObject, color);
+                //ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Kitchen/QuadStreet 3").gameObject, color);
+                //ChangeMaterial(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom/QuadStreet 1").gameObject, color);
             }
             catch (Exception e)
             {
@@ -121,27 +163,46 @@ namespace MitaAI
         public static void UpdateParticleDust()
         {
             //House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/
-            var particleSystems = new List<LocationTimeDayParticleLight>
+            try
             {
-                InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Main Lighting/Sun Particles 1").gameObject.GetComponent<ParticleSystem>()),
-                InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Main Lighting/Sun Particles 2").gameObject.GetComponent<ParticleSystem>()),
-                InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Bedroom Lighting/Sun Particles").gameObject.GetComponent<ParticleSystem>()),
-                InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Kitchen Lighting/Sun Particles 1").gameObject.GetComponent<ParticleSystem>()),
-                InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Kitchen Lighting/Sun Particles 2").gameObject.GetComponent<ParticleSystem>()),
-                InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Kitchen Lighting/Sun Particles 3").gameObject.GetComponent<ParticleSystem>())
+                var particleSystems = new List<LocationTimeDayParticleLight>
+                {
+                    //InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Main Lighting/Sun Particles 1").gameObject.GetComponent<ParticleSystem>()),
+                    //InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Main Lighting/Sun Particles 2").gameObject.GetComponent<ParticleSystem>()),
+                    InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Bedroom Lighting/Sun Particles").gameObject.GetComponent<ParticleSystem>()),
+                    InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Kitchen Lighting/Sun Particles 1").gameObject.GetComponent<ParticleSystem>()),
+                    InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Kitchen Lighting/Sun Particles 2").gameObject.GetComponent<ParticleSystem>()),
+                    InitParticleLight(worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Kitchen Lighting/Sun Particles 3").gameObject.GetComponent<ParticleSystem>())
+                };
+                TimeDay.particleSunLight = particleSystems.ToArray();
+            }
+            catch (Exception e)
+            {
+
+                MelonLogger.Msg("particleSystems" + e);
+            }
+
+            //House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/
+            try
+            {
+                var dusts = new List<ParticleSystem>
+            {
+                worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Main Lighting/Particles Dust").gameObject.GetComponent<ParticleSystem>(),
+                worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Bedroom Lighting/Particles Dust").gameObject.GetComponent<ParticleSystem>(),
+                worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Kitchen Lighting/Particles Dust").gameObject.GetComponent<ParticleSystem>(),
+                worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Toilet Lighting/Particles Dust").gameObject.GetComponent<ParticleSystem>()
             };
 
-            TimeDay.particleSunLight = particleSystems.ToArray();
-
-            var dusts = new List<ParticleSystem>
+                TimeDay.particlesDust = dusts.ToArray();
+            }
+            catch (Exception e)
             {
-                worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Main Lighting/Particles Dust Main").gameObject.GetComponent<ParticleSystem>(),
-                worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Bedroom Lighting/Particles Dust Bedroom").gameObject.GetComponent<ParticleSystem>(),
-                worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Kitchen Lighting/Particles Dust Kitchen").gameObject.GetComponent<ParticleSystem>(),
-                worldHouse.Find("House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/Lighting/Toilet Lighting/Particles Dust Toilet").gameObject.GetComponent<ParticleSystem>()
-            };
 
-            TimeDay.particlesDust = dusts.ToArray();
+                MelonLogger.Msg("dusts" + e);
+            }
+
+
+
         }
 
         public static void CheckDay()
@@ -224,36 +285,58 @@ namespace MitaAI
 
         private static void TransitionDayPhase(Color startColor, Color endColor, Color startSunColor, Color endSunColor, float multiplier)
         {
+            MelonLoader.MelonLogger.Msg("111111");
             var v6 = (location21_World.dayNow % 0.25f) * multiplier;
             var v12 = Mathf.Clamp01(v6);
+            MelonLoader.MelonLogger.Msg("222222");
+            
+            
+
 
             RenderSettings.ambientSkyColor = Color.Lerp(startColor, endColor, v12);
-            TimeDay.sun.color = Color.Lerp(startSunColor, endSunColor, v12);
+            MelonLoader.MelonLogger.Msg("222####");
 
+
+            // Логирование параметров
+            MelonLoader.MelonLogger.Msg($"Parameters: startColor={startColor}, endColor={endColor}, v12={v12}");
+
+            if (sun == null) sun = worldHouse.Find("House/Sun").GetComponent<UnityEngine.Light>();
+            sun.color = Color.Lerp(startSunColor, endSunColor, v12);
+            MelonLoader.MelonLogger.Msg("3333333");
             foreach (var psl in TimeDay.particleSunLight)
             {
+                MelonLoader.MelonLogger.Msg("444");
                 var main = psl.particle.main;
                 main.startColor = Color.Lerp(startSunColor, endSunColor, v12);
             }
 
+            MelonLoader.MelonLogger.Msg("555");
             ChangeQuadStreet(Color.Lerp(TimeDay.colorSunParticleNight, TimeDay.colorSunParticleMorning, v12));
+            MelonLoader.MelonLogger.Msg("666");
         }
     
         public static void applyColor(Color c)
         {
             location21_World.timeDay.colorDay = c;
-            location21_World.day = 0.5f;
+            location21_World.SetTimeDay(0.5f);
             location21_World.UpdateTimeDay();
         }
         public static void resetDayColor()
         {
-            location21_World.timeDay.colorDay = new Color(1, 0.7631255f, 0.6367924f, 0.1490196f); 
+            TimeDay.colorDay = new Color(1, 0.7631255f, 0.6367924f, 0.1490196f); 
             location21_World.UpdateTimeDay();
         }
         public static void setTimeDay(float time)
         {
-            resetDayColor();
+            if (location21_World == null)
+            {
+                MelonLoader.MelonLogger.Warning("NET TUT ETOGO OBJECTA!!!");
+            }
+
+            //resetDayColor();
             location21_World.day = time;
+            MelonLoader.MelonLogger.Warning($"000 Time {time}");
+            location21_World.SetTimeDay(time);
             location21_World.UpdateTimeDay();
         }
 
