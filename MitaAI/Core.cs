@@ -29,7 +29,8 @@ using static MelonLoader.ICSharpCode.SharpZipLib.Zip.ZipEntryFactory;
 using System.Globalization;
 using Il2CppInterop.Runtime.InteropTypes;
 using static UnityEngine.UI.ScrollRect;
-
+using UnityEngine.TextCore.Text;
+using HarmonyLib;
 
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
@@ -38,6 +39,14 @@ namespace MitaAI
 {
     public class MitaCore : MelonMod
     {
+        // Ссылка на экземпляр MitaCore, если он нужен
+        public static MitaCore Instance;
+        public MitaCore()
+        {
+            Instance = this;
+        }
+        // Метод, который будет вызываться после выполнения PrivateMethod
+
         public MitaPerson Mita;
 
         enum MovementStyles
@@ -236,8 +245,10 @@ namespace MitaAI
                 ManekenTemplate = GameObject.Instantiate(TryfindChild(worldBackrooms2, "Quest/Quest 1 (Room 1 - Room 6)/Mita Maneken 1"),worldHouse);
 
                 ManekenTemplate.transform.position = Vector3.zero;
-                ManekenTemplate.transform.FindChild("MitaManeken 1").gameObject.GetComponent<Mob_Maneken>().speedNav = 4;
-                
+                ManekenTemplate.transform.Find("MitaManeken 1").gameObject.GetComponent<Mob_Maneken>().speedNav = 4;
+
+
+
             }
             catch (Exception ex)
             {
@@ -245,6 +256,26 @@ namespace MitaAI
                 MelonLogger.Msg($"WaitForSceneAndInstantiate2 found: {ex}");
             }
 
+        }
+        public void playerKilled()
+        {
+            sendSystemMessage("Игрок был укушен манекеном. Манекен выключился (их можно запускать заново)");
+            playerPerson.transform.parent.position = GetRandomLoc().position;
+            Component effectComponent = playerEffectsObject.GetComponentByName("Glitch");
+            if (effectComponent is Il2CppObjectBase il2cppComponent)
+            {
+                // Если это Il2CppObjectBase
+                LoggerInstance.Msg($"Il2Cpp component detected: {il2cppComponent.GetType().Name}");
+
+                // Проверяем, имеет ли компонент свойство enabled
+                var enabledProperty = il2cppComponent.GetType().GetProperty("enabled");
+                var behaviour = il2cppComponent.TryCast<Behaviour>();
+                behaviour.enabled = true;
+
+                // Запускаем корутину, передавая Il2Cpp-компонент
+                MelonCoroutines.Start(HandleIl2CppComponent(il2cppComponent, 5f));
+
+            }
         }
 
         public static Transform FindObjectInScene(string sceneName, string objectPath)
@@ -321,19 +352,24 @@ namespace MitaAI
                 try
                 {
                     GameObject Trigger = GameObject.Find("World/Quests/Quest 1/Trigger Entry Kitchen");
+                    Trigger.SetActive(false);
+
+
                     GameObject Location34_CommunicationObject = GameObject.Find("World/Quests/Quest 1/Addon");
                     Location34_Communication = GameObject.Find("World/Quests/Quest 1/Addon").GetComponent<Location34_Communication>();
                     Location34_Communication.play = true;
                     Location34_Communication.mitaCanWalk = true;
                     Location34_Communication.indexSwitchAnimation = 1;
-                    Mita.AiShraplyStop();
-                    Trigger.SetActive(false);
+                    
+                    
 
                     CollectChildObjects(Location34_CommunicationObject);
+
+                    Mita.AiShraplyStop();
                 }
-                catch
+                catch (Exception ex)
                 {
-                    
+                    LoggerInstance.Error(ex);
                 }
                 InitializeGameObjects();
             }
@@ -363,8 +399,9 @@ namespace MitaAI
 
             var posX = playerTransform.position.x;
             var posZ = playerTransform.position.z;
+            
             var posY = playerTransform.position.y;
-            if (posY < 0) {
+            if (posY < -0.0002f) {
                 return 4;
             }
             else
@@ -721,7 +758,7 @@ namespace MitaAI
 
         private IEnumerator StartDayTime()
         {
-            yield return new WaitForSeconds(3f);
+            yield return new WaitForSeconds(1f);
             LightingAndDaytime.setTimeDay(0.5f);
         }
 
@@ -949,8 +986,7 @@ namespace MitaAI
         {
             LoggerInstance.Msg("DisplayResponseAndEmotion");
 
-            isInputBlocked = true;
-
+            TurnBlockInputField(true);
             try
             {
 
@@ -1045,7 +1081,7 @@ namespace MitaAI
             GameObject.Destroy(currentDialog);
             LoggerInstance.Msg("Dialogue part finished and destroyed.");
 
-            isInputBlocked = false;
+            TurnBlockInputField(false);
         }
 
         private IEnumerator PlayMitaSound(int delay, AudioClip audioClip)
@@ -1257,17 +1293,20 @@ namespace MitaAI
         public void spawnManeken()
         {
             GameObject someManeken = GameObject.Instantiate(ManekenTemplate, worldHouse.Find("House"));
-            someManeken.transform.SetPositionAndRotation(GetRandomLoc().position,Quaternion.identity);
             someManeken.SetActive(true);
             activeMakens.Add(someManeken);
 
-            if (!manekenGame)
+            
+            
+            
+
+            if (manekenGame == false)
             {
                 manekenGame = true;
                 MelonCoroutines.Start(CheckManekenGame());
             }
+            someManeken.transform.SetPositionAndRotation( GetRandomLoc().position,GetRandomLoc().rotation );
 
-            
 
         }
         public void TurnAllMenekens(bool on)
@@ -1288,6 +1327,7 @@ namespace MitaAI
             {
                 GameObject.Destroy(m);
             }
+            activeMakens.Clear();
             manekenGame = false;
         }
 
@@ -1656,7 +1696,7 @@ namespace MitaAI
                                 playerEffects.EffectClickTelevision();
                                 break;
                             case "помехи":
-                                effectComponent = playerEffectsObject.GetComponentByName("Glitch");
+                                effectComponent = playerEffectsObject.GetComponentByName("Noise");
                                 break;
                             case "негатив":
                                 effectComponent = playerEffectsObject.GetComponentByName("Negative");
@@ -1696,7 +1736,7 @@ namespace MitaAI
                                 LoggerInstance.Warning($"Component {effectComponent?.GetType().Name} is not a MonoBehaviour or Il2CppObjectBase.");
                             }
                         }
-
+                        
                     }
                     catch (Exception ex)
                     {
@@ -1991,15 +2031,14 @@ namespace MitaAI
 
 
         }
-        private async void BlockInputFieldAsync(float t)
+        private void TurnBlockInputField(bool blocked)
         {
-            isInputBlocked = true; // Устанавливаем блокировку
-            InputFieldComponent?.SetActive(false); // Отключаем поле ввода, если оно активно
-
-            await Task.Delay((int)(t)); // Ждём указанное время (в миллисекундах)
-
-            InputFieldComponent.SetActive(true); // Отключаем поле ввода, если оно активно
-            isInputBlocked = false; // Снимаем блокировку
+            isInputBlocked = blocked; // Устанавливаем блокировку
+            if (InputFieldComponent != null)
+            {
+                InputFieldComponent.SetActive(!blocked); // Отключаем поле ввода, если оно активно
+            }
+            
         }
 
         private void CreateInputComponent()
@@ -2213,4 +2252,27 @@ namespace MitaAI
     }
 
 
+    [HarmonyLib.HarmonyPatch(typeof(Mob_Maneken), "StartKillPlayer")]
+    public static class Patch
+    {
+        
+        //private static void Prefix()
+        //{
+        // The code inside this method will run before 'PrivateMethod' is executed
+        //}
+
+        private static void Postfix()
+        {
+            MelonLogger.Msg("TRYING TRYING");
+            if (MitaCore.Instance != null)
+            {
+                MelonLogger.Msg("MitaCore.Instance is NOT  null.))");
+                MitaCore.Instance.playerKilled(); // Вызов метода playerKilled из экземпляра MitaCore
+            }
+            else
+            {
+                MelonLogger.Msg("MitaCore.Instance is null.");
+            }
+        }
+    }
 }
