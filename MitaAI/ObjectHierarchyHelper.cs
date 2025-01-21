@@ -3,7 +3,7 @@ using UnityEngine;
 
 public static class ObjectHierarchyHelper
 {
-    public static string GetObjectsInRadiusAsTree(GameObject origin, float radius, Transform requiredParent, Transform excludedParent=null)
+    public static string GetObjectsInRadiusAsTree(GameObject origin, float radius, Transform requiredParent)
     {
         // Используем StringBuilder для построения строки
         StringBuilder treeBuilder = new StringBuilder();
@@ -17,14 +17,16 @@ public static class ObjectHierarchyHelper
             Transform currentTransform = collider.transform;
 
             // Проверяем, имеет ли объект указанного родителя и не принадлежит ли исключенному
-            if (IsChildOfParent(currentTransform, requiredParent) && !IsChildOfParent(currentTransform, excludedParent))
+            if (IsChildOfParent(currentTransform, requiredParent))
             {
                 // Строим дерево имен
-                AppendHierarchyToTree(currentTransform, treeBuilder, 0, origin.transform.position, excludedParent);
+                AppendHierarchyToTree(currentTransform, treeBuilder, 0, origin.transform.position);
             }
         }
 
-        return treeBuilder.ToString();
+        string result = treeBuilder.ToString();
+        if (result == "") result = "-";
+        return result;
     }
 
     private static bool IsChildOfParent(Transform obj, Transform parent)
@@ -42,11 +44,9 @@ public static class ObjectHierarchyHelper
         return false;
     }
 
-    private static void AppendHierarchyToTree(Transform current, StringBuilder builder, int depth, Vector3 from, Transform excludedParent)
+    private static void AppendHierarchyToTree(Transform current, StringBuilder builder, int depth, Vector3 from)
     {
-        // Проверяем, не является ли текущий объект исключенным родителем
-        if (current == excludedParent)
-            return;
+
 
         string distance = $" {Vector2.Distance(current.transform.position, from):F2} м";
 
@@ -59,11 +59,8 @@ public static class ObjectHierarchyHelper
         {
             Transform child = current.GetChild(i);
 
-            // Пропускаем детей исключенного родителя
-            if (child.parent == excludedParent)
-                continue;
 
-            AppendHierarchyToTree(child, builder, depth + 1, from, excludedParent);
+            AppendHierarchyToTree(child, builder, depth + 1, from);
         }
     }
 }

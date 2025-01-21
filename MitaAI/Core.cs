@@ -31,6 +31,8 @@ using Il2CppInterop.Runtime.InteropTypes;
 using static UnityEngine.UI.ScrollRect;
 using UnityEngine.TextCore.Text;
 using HarmonyLib;
+using MelonLoader.Utils;
+using System.Reflection.Metadata;
 
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
@@ -48,7 +50,7 @@ namespace MitaAI
         // Метод, который будет вызываться после выполнения PrivateMethod
 
         public MitaPerson Mita;
-
+        Animator_FunctionsOverride MitaAnimatorFunctions;
         enum MovementStyles
         {
             walkNear=0,
@@ -97,8 +99,10 @@ namespace MitaAI
         Queue<string> patches_to_sound_file = new Queue<string>();
         string patch_to_sound_file = "";
         
-        string hierarchy = "";
+        string hierarchy = "-";
 
+        static List<AnimationClip> MitaAnims = new List<AnimationClip>();
+        static Il2CppAssetBundle bundle;
 
 
         string requiredSceneName = "Scene 4 - StartSecret";
@@ -143,6 +147,45 @@ namespace MitaAI
 
         bool manekenGame = false;
 
+
+
+        public override void OnInitializeMelon()
+        {
+            base.OnInitializeMelon();
+            //Test2();
+        }
+
+        public void PlayMitaAnim(string animName)
+        {
+            if (bundle == null)
+            {
+                bundle = AssetBundleLoader.LoadAssetBundle("assetbundle");
+            }
+            try
+            {
+                
+                if (animName != "")
+                {
+                    AnimationClip anim = AssetBundleLoader.LoadAnimationClipByName(bundle, animName);
+                    anim.events = Array.Empty<AnimationEvent>();
+                    LoggerInstance.Msg(anim.name);
+                    MitaAnimatorFunctions.AnimationClipSimpleNext(anim);
+                }
+                else
+                {
+                    AnimationClip anim = AssetBundleLoader.LoadRandomAnimationClip(bundle);
+                    anim.events = Array.Empty<AnimationEvent>();
+                    LoggerInstance.Msg(anim.name);
+                    MitaAnimatorFunctions.AnimationClipSimpleNext(anim);
+                }
+            }
+            catch (Exception e)
+            {
+                LoggerInstance.Msg("Problem wit anim" + e);
+            }
+            
+            
+        }
 
         public void sendSystemMessage(string m)
         {
@@ -338,6 +381,7 @@ namespace MitaAI
 
             else if (CurrentSceneName == "SceneMenu")
             {
+                
                 sendSystemInfo("Игрок в меню");
                 MainMenu = GameObject.Find("MenuGame").GetComponent<Menu>();
                 //MainMenu.Alternative();
@@ -418,7 +462,7 @@ namespace MitaAI
         {
             Mita = GameObject.Find("Mita")?.GetComponent<MitaPerson>();
 
-
+            MitaAnimatorFunctions = Mita.gameObject.transform.Find("MitaPerson Mita").gameObject.GetComponent<Animator_FunctionsOverride>();
 
 
             //Mita.gameObject.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled = true;
@@ -867,7 +911,7 @@ namespace MitaAI
             }
             catch (Exception ex)
             {
-                LoggerInstance.Msg($"Error in HandleDialogueAsync: {ex.Message}");
+                //LoggerInstance.Msg($"Error in HandleDialogueAsync: {ex.Message}");
             }
             
         }
@@ -1048,6 +1092,7 @@ namespace MitaAI
                 LoggerInstance.Msg("Begin try:"+ modifiedPart);
                 modifiedPart = SetFaceStyle(modifiedPart);
                 modifiedPart = ProcessPlayerEffects(modifiedPart);
+                modifiedPart = setAnimation(modifiedPart);
                 (emotion,modifiedPart) = SetEmotionBasedOnResponse(modifiedPart);
                 LoggerInstance.Msg("After SetEmotionBasedOnResponse " + modifiedPart);
 
@@ -1615,12 +1660,60 @@ namespace MitaAI
             }
             catch (Exception ex)
             {
-                LoggerInstance.Error($"Problem with FaceStyle: {ex.Message}");
+                LoggerInstance.Error($"Problem with SetMovementStyle: {ex.Message}");
             }
 
             // Возвращаем кортеж: лицо и очищенный текст
             return cleanedResponse;
         }
+        public string setAnimation(string response)
+        {
+            // Регулярное выражение для извлечения эмоций
+            string pattern = @"<a>(.*?)</a>";
+            Match match = Regex.Match(response, pattern);
+
+            string MovementStyle = string.Empty;
+            string cleanedResponse = Regex.Replace(response, @"<a>.*?</a>", ""); // Очищаем от всех тегов
+
+            if (match.Success)
+            {
+                // Если эмоция найдена, устанавливаем её в переменную faceStyle
+                MovementStyle = match.Groups[1].Value;
+            }
+            try
+            {
+                // Проверка на наличие объекта Mita перед применением эмоции
+                if (Mita == null || Mita.gameObject == null)
+                {
+                    LoggerInstance.Error("Mita object is null or Mita.gameObject is not active.");
+                    return cleanedResponse; // Возвращаем faceStyle и очищенный текст
+                }
+                // Устанавливаем лицо, если оно найдено
+                switch (MovementStyle)
+                {
+                    case "Щелчек":
+                        PlayMitaAnim("Mita Click");
+                        break;
+                    case "Помахать":
+                        PlayMitaAnim("Mita Hello");
+                        break;
+                    case "Случайная анимация":
+                        PlayMitaAnim("");
+                        break;
+                    default:
+
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Error($"Problem with Animation: {ex.Message}");
+            }
+
+            // Возвращаем кортеж: лицо и очищенный текст
+            return cleanedResponse;
+        }
+        
         public IEnumerator FollowPlayer()
         {
             
@@ -1901,12 +1994,16 @@ namespace MitaAI
                 distance = getDistance();
                 roomIDPlayer = GetRoomID(playerPerson.transform);
                 roomIDMita = GetRoomID(Mita.transform);
-                string total_input = $"{input}|||{dataToSentSystem}|||{systemInfo}|||{distance}|||{roomIDPlayer}|||{roomIDMita}|||{hierarchy}";
+                string currentInfo = formCurrentInfo();
+                if (string.IsNullOrEmpty(currentInfo)) currentInfo = "-";
+                if (string.IsNullOrEmpty(systemInfo)) systemInfo = "-";
+                if (string.IsNullOrEmpty(hierarchy)) hierarchy = "-";
+                string total_input = $"{input}|||{dataToSentSystem}|||{systemInfo}|||{distance}|||{roomIDPlayer}|||{roomIDMita}|||{hierarchy}|||{currentInfo}";
 
                 byte[] messageBytes = Encoding.UTF8.GetBytes(total_input);
                 await clientSocket.SendAsync(messageBytes, SocketFlags.None);
 
-                byte[] buffer = new byte[3000];
+                byte[] buffer = new byte[4086];
                 try
                 {
                     int bytesRead = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
@@ -1924,13 +2021,40 @@ namespace MitaAI
                 }
                 catch (Exception ex)
                 {
-                    LoggerInstance.Msg($"Error receiving data: {ex.Message}");
+                    //LoggerInstance.Msg($"Error receiving data: {ex.Message}");
                     return string.Empty; // Возвращаем пустой ответ в случае ошибки при получении данных
                 }
             }
             
         }
+        public string formCurrentInfo()
+        {
 
+            string info = "-";
+            try
+            {
+                info = info + $"Current movement type: {movementStyle.ToString()}\n";
+
+                if (location21_World != null && location21_World.timeDay!= null)
+                //{
+                  //  info += $"Game house time (%): {location21_World.dayNow}\n";
+                   // info += $"Current lighing color: {location21_World.timeDay.colorDay}\n";
+                //}
+                
+                info = info + $"Menekens count: {activeMakens.Count}\n";
+                if (Mita != null)
+                {
+                    info += $"Your emotion : {Mita.startEmotion.ToString()}\n";
+                }
+                
+            }
+            catch (Exception ex)
+            {
+
+                LoggerInstance.Msg(ex);
+            }
+            return info;
+        }
 
         private async Task<bool> TryConnectAsync(Socket socket, string address, int port, int maxRetries = 3, int delayBetweenRetries = 2000)
         {
@@ -1947,14 +2071,14 @@ namespace MitaAI
                     attempt++;
                     if (attempt >= maxRetries)
                     {
-                        LoggerInstance.Msg($"Max retries reached. Unable to connect to {address}:{port}.{ex}");
+                        //LoggerInstance.Msg($"Max retries reached. Unable to connect to {address}:{port}.{ex}");
                         return false; // После превышения количества попыток
                     }
                     await Task.Delay(delayBetweenRetries); // Задержка перед повторной попыткой
                 }
                 catch (Exception ex)
                 {
-                    LoggerInstance.Msg($"Unexpected error connecting to {address}:{port}: {ex.Message}");
+                    //LoggerInstance.Msg($"Unexpected error connecting to {address}:{port}: {ex.Message}");
                     return false; // Если произошла неожиданная ошибка
                 }
             }
@@ -2043,7 +2167,7 @@ namespace MitaAI
 
         private void CreateInputComponent()
         {
-            LoggerInstance.Msg("1");
+
 
             // Создаем объект InputField
             InputFieldComponent = new GameObject("InputFieldComponent");
@@ -2053,7 +2177,7 @@ namespace MitaAI
             if (_interface == null) return;
 
             InputFieldComponent.transform.parent = _interface.transform;
-            LoggerInstance.Msg("2");
+
 
             var rect = InputFieldComponent.AddComponent<RectTransform>();
             rect.anchoredPosition = Vector2.zero;
@@ -2062,7 +2186,7 @@ namespace MitaAI
             rect.anchorMax = new Vector2(0.5f, 0);
             rect.pivot = new Vector2(0.5f, 0);
 
-            LoggerInstance.Msg("3");
+
 
             var image = InputFieldComponent.AddComponent<UnityEngine.UI.Image>();
 /*            try
@@ -2080,7 +2204,6 @@ namespace MitaAI
             image.color = new Color(0f, 0f, 0f,0.7f);
             ifc.image = image;
 
-            LoggerInstance.Msg("4");
 
             var TextLegacy = new GameObject("TextLegacy");
             var textComponent = TextLegacy.AddComponent<Text>();
@@ -2090,7 +2213,7 @@ namespace MitaAI
             rectText.anchoredPosition = Vector2.zero;
             var texts = GameObject.FindObjectsOfType<Text>();
 
-            LoggerInstance.Msg("5");
+
 
             foreach (var text in texts)
             {
@@ -2100,8 +2223,6 @@ namespace MitaAI
                 if (textComponent.font != null) break;
             }
 
-            
-            LoggerInstance.Msg("6");
 
             var textInputField = InputFieldComponent.GetComponent<InputField>();
             textInputField.textComponent = TextLegacy.GetComponent<Text>();
@@ -2109,7 +2230,7 @@ namespace MitaAI
             textInputField.textComponent.color = Color.yellow;
             textInputField.textComponent.alignment = TextAnchor.MiddleCenter;
 
-            LoggerInstance.Msg("7");
+
 
             // Устанавливаем 70% ширины от родителя
             RectTransform parentRect = _interface.GetComponent<RectTransform>();
@@ -2119,7 +2240,6 @@ namespace MitaAI
             textInputField.Select();
             textInputField.ActivateInputField();
 
-            LoggerInstance.Msg("8");
         }
 
 
@@ -2131,7 +2251,17 @@ namespace MitaAI
             PlayerTalk(inputText);
             playerMessage = inputText;
 
-   
+
+            //PlayMitaAnim("Mita Click");
+            //PlayMitaAnim("Mita Click_0");
+            //PlayMitaAnim("Mita Click_1");
+            //PlayMitaAnim("Mita Click_2");
+            //PlayMitaAnim("Mita ThrowPlayer");
+            //List<AnimationClip> r = Test2();
+            // LoggerInstance.Msg(r[0].name);
+            // AnimationClip randimAnim = r[UnityEngine.Random.Range(0, r.Count)];
+            //LoggerInstance.Msg(randimAnim.name);
+            // Log the start of the operation
 
 
         }

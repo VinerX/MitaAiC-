@@ -317,10 +317,12 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<Compile Include="AnimationLoader.cs" />
+		<Compile Include="AssetBundleLoader.cs" />
+		<Compile Include="Il2CppAssetBundle.cs" />
+		<Compile Include="Il2CppAssetBundleManager.cs" />
+		<Compile Include="Il2CppAssetBundleRequest.cs" />
 		<Compile Include="LightingAndDaytime.cs" />
 		<Compile Include="ObjectHierarchyHelper.cs" />
-		<Compile Include="UnityMainThreadDispatcher.cs" />
 		<Compile Include="Core.cs" />
 	</ItemGroup>
 
