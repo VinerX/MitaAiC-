@@ -33,6 +33,8 @@ using UnityEngine.TextCore.Text;
 using HarmonyLib;
 using MelonLoader.Utils;
 using System.Reflection.Metadata;
+using UnityEngine.XR;
+using UnityEngine.Profiling;
 
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
@@ -572,7 +574,15 @@ namespace MitaAI
                 AddOtherScenes();
             }
             catch { }
-            
+
+            try
+            {
+                bundle = AssetBundleLoader.LoadAssetBundle("assetbundle");
+            }
+            catch (Exception)
+            {
+
+            }
 
             AllLoaded = true;
 
@@ -1001,7 +1011,7 @@ namespace MitaAI
             yield return null; // Это нужно для того, чтобы выполнение произошло после завершения текущего кадра
 
             float elapsedTime = 0f; // Счетчик времени
-            float timeout = 5.5f;     // Лимит времени ожидания
+            float timeout = 6.5f;     // Лимит времени ожидания
 
             // Ждем, пока patch_to_sound_file перестанет быть пустым или не истечет время ожидания
             while (string.IsNullOrEmpty(patch_to_sound_file) && elapsedTime < timeout)
@@ -1646,11 +1656,15 @@ namespace MitaAI
                         movementStyle = MovementStyles.follow;
                         Location34_Communication.ActivationCanWalk(false);
                         MelonCoroutines.Start(FollowPlayer());
-
                         break;
                     case "Стоять на месте":
                         movementStyle = MovementStyles.stay;
                         Location34_Communication.ActivationCanWalk(false);
+                        break;
+                    case "NoClip":
+                        movementStyle = MovementStyles.noklip;
+                        Location34_Communication.ActivationCanWalk(false);
+                        MelonCoroutines.Start(MoveToPositionNoClip(5));
                         break;
                     default:
                         //Mita.FaceColorUpdate();
@@ -1692,16 +1706,53 @@ namespace MitaAI
                 switch (MovementStyle)
                 {
                     case "Щелчек":
-                        PlayMitaAnim("Mita Click");
+                        PlayMitaAnim("Mita Click_2");
                         break;
                     case "Помахать":
                         PlayMitaAnim("Mita Hello");
+                        break;
+                    case "Помахать от комаров":
+                        PlayMitaAnim("Hey");
+                        break;
+                    case "Радостно помахать":
+                        PlayMitaAnim("MitaStartIdle");
+                        break;
+                    case "Взять предмет":
+                        PlayMitaAnim("Mita TakeBat");
+                        break;
+                    case "Развести руки":
+                        PlayMitaAnim("Mita Throw Knifes");
+                        break;
+                    case "Поднести палец к подбородку":
+                        PlayMitaAnim("Mita TalkWithPlayer");
+                        break;
+                    case "Поднести руку вверх":
+                        PlayMitaAnim("Mita TalkWithPlayer");
+                        break;
+                    case "Показать предмет":
+                        PlayMitaAnim("Mita Selfi");
+                        break;
+                    case "Развести руками":
+                        PlayMitaAnim("Mita Search");
+                        break;
+                    case "Прикрыть глаза":
+                        PlayMitaAnim("Mita Close Eyes");
+                        break;
+                    case "Удар":
+                        PlayMitaAnim("Mita Kick");
+                        break;
+                    case "Похвастаться предметом":
+                        PlayMitaAnim("Mita Take Recorder");
                         break;
                     case "Случайная анимация":
                         PlayMitaAnim("");
                         break;
                     default:
-
+                        if (MovementStyle != "")
+                        {
+                            PlayMitaAnim(MovementStyle);
+                        }
+                        
                         break;
                 }
             }
@@ -1729,7 +1780,25 @@ namespace MitaAI
 
             
         }
+        private IEnumerator MoveToPositionNoClip(float speed)
+        {
+            while (movementStyle == MovementStyles.noklip && getDistance() > 0.9f)
+            {
+                Vector3 targetPosition = playerPerson.gameObject.transform.position;
+                // Двигаем персонажа напрямую к цели (без учета препятствий)
+                Mita.transform.position = Vector3.MoveTowards(Mita.transform.position, targetPosition, speed * Time.deltaTime);
 
+                // Можно добавить поворот персонажа в направлении движения (опционально)
+                Vector3 direction = (targetPosition - Mita.transform.position).normalized;
+                if (direction != Vector3.zero)
+                    Mita.transform.rotation = Quaternion.LookRotation(direction);
+
+                yield return null; // Ждем следующий кадр
+            }
+
+            // Когда достигли цели
+            Debug.Log("NoClip movement completed!");
+        }
 
         private string ProcessPlayerEffects(string response)
         {
@@ -2044,7 +2113,7 @@ namespace MitaAI
                 info = info + $"Menekens count: {activeMakens.Count}\n";
                 if (Mita != null)
                 {
-                    info += $"Your emotion : {Mita.startEmotion.ToString()}\n";
+                    //info += $"Your emotion : {Mita.startEmotion.ToString()}\n";
                 }
                 
             }

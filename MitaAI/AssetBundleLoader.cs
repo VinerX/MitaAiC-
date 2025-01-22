@@ -137,7 +137,7 @@ public static class AssetBundleLoader
         return null;
     }
 
-
+    static List<string> animationClipNames = new List<string>();
     public static AnimationClip LoadRandomAnimationClip(Il2CppAssetBundle bundle)
     {
         if (bundle == null)
@@ -146,20 +146,47 @@ public static class AssetBundleLoader
             return null;
         }
 
-        // Загружаем все анимации
-        List<AnimationClip> animationClips = LoadAllAnimationClips(bundle);
+        if (animationClipNames==null || animationClipNames.Count == 0)
+        {
+            // Получаем список всех ресурсов в AssetBundle
+            string[] allAssetNames = bundle.GetAllAssetNames();
+            if (allAssetNames == null || allAssetNames.Length == 0)
+            {
+                MelonLogger.Msg("No assets found in the AssetBundle.");
+                return null;
+            }
 
-        if (animationClips == null || animationClips.Count == 0)
+            // Фильтруем только анимации
+
+            animationClipNames = allAssetNames
+                .Where(name => name.EndsWith(".anim", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+ 
+
+        if (animationClipNames.Count == 0)
         {
             MelonLogger.Msg("No AnimationClips found in the AssetBundle.");
             return null;
         }
 
-        // Выбираем случайный индекс
-        int randomIndex = new System.Random().Next(animationClips.Count);
-        AnimationClip randomClip = animationClips[randomIndex];
+        // Выбираем случайное имя анимации
+        int randomIndex = new System.Random().Next(animationClipNames.Count);
+        string randomClipName = animationClipNames[randomIndex];
 
-        MelonLogger.Msg($"Random AnimationClip selected: {randomClip.name}");
+        // Загружаем анимацию по имени
+        AnimationClip randomClip = bundle.LoadAsset<AnimationClip>(randomClipName);
+
+        if (randomClip != null)
+        {
+            MelonLogger.Msg($"Random AnimationClip selected: {randomClip.name}");
+        }
+        else
+        {
+            MelonLogger.Msg($"Failed to load AnimationClip: {randomClipName}");
+        }
+
         return randomClip;
     }
+
 }
