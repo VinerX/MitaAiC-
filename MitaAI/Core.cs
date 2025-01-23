@@ -35,6 +35,7 @@ using MelonLoader.Utils;
 using System.Reflection.Metadata;
 using UnityEngine.XR;
 using UnityEngine.Profiling;
+using UnityEngine.AI;
 
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
@@ -51,19 +52,21 @@ namespace MitaAI
         }
         // Метод, который будет вызываться после выполнения PrivateMethod
 
-        public MitaPerson Mita;
+        GameObject MitaObject;
+        MitaPerson Mita;
         Animator_FunctionsOverride MitaAnimatorFunctions;
         enum MovementStyles
         {
-            walkNear=0,
-            follow=1,
-            stay=2,
-            noklip=3
+            walkNear = 0,
+            follow = 1,
+            stay = 2,
+            noklip = 3
 
         }
         MovementStyles movementStyle = 0;
 
-        public PlayerPerson playerPerson;
+        PlayerPerson playerPerson;
+        GameObject playerObject;
         PlayerCameraEffects playerEffects;
         GameObject playerEffectsObject;
         float distance = 0f;
@@ -100,7 +103,7 @@ namespace MitaAI
 
         Queue<string> patches_to_sound_file = new Queue<string>();
         string patch_to_sound_file = "";
-        
+
         string hierarchy = "-";
 
         static List<AnimationClip> MitaAnims = new List<AnimationClip>();
@@ -165,7 +168,7 @@ namespace MitaAI
             }
             try
             {
-                
+
                 if (animName != "")
                 {
                     AnimationClip anim = AssetBundleLoader.LoadAnimationClipByName(bundle, animName);
@@ -185,8 +188,8 @@ namespace MitaAI
             {
                 LoggerInstance.Msg("Problem wit anim" + e);
             }
-            
-            
+
+
         }
 
         public void sendSystemMessage(string m)
@@ -211,7 +214,7 @@ namespace MitaAI
             catch (Exception)
             {
 
-                
+
             }
             try
             {
@@ -232,7 +235,7 @@ namespace MitaAI
         {
             // Загружаем сцену
             MelonLogger.Msg($"Loading scene: {sceneToLoad}");
-            additiveLoadedScenes.Add( sceneToLoad );
+            additiveLoadedScenes.Add(sceneToLoad);
             SceneManager.LoadScene(sceneToLoad, LoadSceneMode.Additive);
 
             // Ожидание завершения загрузки сцены
@@ -255,7 +258,7 @@ namespace MitaAI
 
             MelonLogger.Msg($"Object found: {worldBasement.name}");
 
-            
+
 
             InitializeGameObjectsWhenReady();
         }
@@ -287,7 +290,7 @@ namespace MitaAI
             MelonLogger.Msg($"Object found: {worldBackrooms2.name}");
             try
             {
-                ManekenTemplate = GameObject.Instantiate(TryfindChild(worldBackrooms2, "Quest/Quest 1 (Room 1 - Room 6)/Mita Maneken 1"),worldHouse);
+                ManekenTemplate = GameObject.Instantiate(TryfindChild(worldBackrooms2, "Quest/Quest 1 (Room 1 - Room 6)/Mita Maneken 1"), worldHouse);
 
                 ManekenTemplate.transform.position = Vector3.zero;
                 ManekenTemplate.transform.Find("MitaManeken 1").gameObject.GetComponent<Mob_Maneken>().speedNav = 4;
@@ -321,6 +324,10 @@ namespace MitaAI
                 MelonCoroutines.Start(HandleIl2CppComponent(il2cppComponent, 5f));
 
             }
+        }
+        public void playerClickSage()
+        {
+            sendSystemMessage("Игрок кликает на кнопки твоего сейфа!!!");
         }
 
         public static Transform FindObjectInScene(string sceneName, string objectPath)
@@ -362,28 +369,30 @@ namespace MitaAI
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
 
         {
-;           
+            ;
 
-            LoggerInstance.Msg("Scene loaded "+ sceneName);
-            if ( !additiveLoadedScenes.Contains(sceneName) )
+            LoggerInstance.Msg("Scene loaded " + sceneName);
+            if (!additiveLoadedScenes.Contains(sceneName))
             {
                 LoggerInstance.Msg("Scene loaded not addictive" + sceneName);
                 CurrentSceneName = sceneName;
             }
-            else{
+            else
+            {
                 LoggerInstance.Msg("Scene loaded addictive!!! " + sceneName);
-                return; }
-            
+                return;
+            }
+
 
             if (CurrentSceneName == "AiHasto")
             {
-                
+
                 //GameObject GameObject = GameObject.Find("MenuGame")>
             }
 
             else if (CurrentSceneName == "SceneMenu")
             {
-                
+
                 sendSystemInfo("Игрок в меню");
                 MainMenu = GameObject.Find("MenuGame").GetComponent<Menu>();
                 //MainMenu.Alternative();
@@ -393,7 +402,7 @@ namespace MitaAI
 
             }
 
-            else if ( requiredSceneName == CurrentSceneName )
+            else if (requiredSceneName == CurrentSceneName)
             {
                 try
                 {
@@ -406,8 +415,8 @@ namespace MitaAI
                     Location34_Communication.play = true;
                     Location34_Communication.mitaCanWalk = true;
                     Location34_Communication.indexSwitchAnimation = 1;
-                    
-                    
+
+
 
                     CollectChildObjects(Location34_CommunicationObject);
 
@@ -420,7 +429,7 @@ namespace MitaAI
                 InitializeGameObjects();
             }
         }
-        
+
         int roomIDPlayer = -1;
         int roomIDMita = -1;
         // Первая функция, которая принимает PlayerMove
@@ -445,9 +454,10 @@ namespace MitaAI
 
             var posX = playerTransform.position.x;
             var posZ = playerTransform.position.z;
-            
+
             var posY = playerTransform.position.y;
-            if (posY < -0.0002f) {
+            if (posY < -0.0002f)
+            {
                 return 4;
             }
             else
@@ -463,7 +473,8 @@ namespace MitaAI
         private void InitializeGameObjects()
         {
             Mita = GameObject.Find("Mita")?.GetComponent<MitaPerson>();
-
+            MitaObject = GameObject.Find("Mita");
+            //GameObject.DontDestroyOnLoad(MitaObject);
             MitaAnimatorFunctions = Mita.gameObject.transform.Find("MitaPerson Mita").gameObject.GetComponent<Animator_FunctionsOverride>();
 
 
@@ -472,6 +483,14 @@ namespace MitaAI
             playerPerson = GameObject.Find("Person")?.GetComponent<PlayerPerson>();
             playerPerson.transform.parent.GetComponent<PlayerMove>().speedPlayer = 1f;
             playerPerson.transform.parent.GetComponent<PlayerMove>().canRun = true;
+            try
+            {
+                playerObject = playerPerson.transform.parent.gameObject;
+            }
+            catch (Exception)
+            {
+            }
+
             playerEffects = playerPerson.transform.parent.Find("HeadPlayer/MainCamera").gameObject.GetComponent<PlayerCameraEffects>();
             playerEffectsObject = playerPerson.transform.parent.Find("HeadPlayer/MainCamera/CameraPersons").gameObject;
             blackScreen = GameObject.Find("Game/Interface/BlackScreen").GetComponent<BlackScreen>();
@@ -485,7 +504,7 @@ namespace MitaAI
 
                 LoggerInstance.Msg("Camera not LoggerInstance.Msg(\"Camera found\" + playerCamera.name);found" + playerCamera.name);
             }
-           
+
 
 
             LoggerInstance.Msg(Mita != null ? "Mita found!" : "Mita not found.");
@@ -497,7 +516,7 @@ namespace MitaAI
             World worldSettings = worldHouse.gameObject.GetComponent<World>();
 
             location21_World = worldHouse.gameObject.AddComponent<Location21_World>();
-            LightingAndDaytime.Init(location21_World,worldHouse);
+            LightingAndDaytime.Init(location21_World, worldHouse);
             MelonCoroutines.Start(StartDayTime());
             //MelonCoroutines.Start(UpdateLighitng());
 
@@ -627,12 +646,13 @@ namespace MitaAI
 
                 //TryfindChild(worldBasement, "/Act/ContinueScene\"").SetActive(false);
 
-
+                TryTurnChild(worldBasement, "Quests/Quest1 Start",false);
+                TryTurnChild(worldBasement, "Mita Future", false);
 
                 // Работа с AnimationKiller
                 LoggerInstance.Msg("AnimationKiller start");
                 string objectPath = "Quests/Quest2 HideAndSeek/Animation Killer";
-                AnimationKiller = FindAndInstantiateObject(worldBasement, objectPath,"222");
+                AnimationKiller = FindAndInstantiateObject(worldBasement, objectPath, "222");
                 //AnimationKiller.GetComponent<Location6_MitaKiller>().mita = Mita.transform;
                 TryTurnChild(worldBasement, "Sounds/Ambient 1", false);
                 AnimationKiller.SetActive(false);
@@ -664,7 +684,7 @@ namespace MitaAI
                 LoggerInstance.Msg($"Error in InitializeGameObjectsWhenReady: {e.Message}");
             }
         }
-        public GameObject TryfindChild(Transform parent,string path)
+        public GameObject TryfindChild(Transform parent, string path)
         {
             try
             {
@@ -759,14 +779,14 @@ namespace MitaAI
 
 
         bool FirstTime = true;
-        
+
         public override async void OnFixedUpdate()
         {
 
             //LoggerInstance.Msg("1"+ CurrentSceneName);
-            if ( CurrentSceneName != "Scene 4 - StartSecret") { return; };
+            if (CurrentSceneName != "Scene 4 - StartSecret") { return; };
             //LoggerInstance.Msg("2" + CurrentSceneName);
-            if ( !AllLoaded ) { return;  };
+            if (!AllLoaded) { return; };
 
 
 
@@ -774,7 +794,7 @@ namespace MitaAI
             await UpdateBoringTimerAsync(Time.fixedDeltaTime);
 
 
-            
+
 
             if (timer >= Interval)
             {
@@ -782,7 +802,7 @@ namespace MitaAI
                 await HandleDialogueAsync();
             }
 
-            if ( getDistance()<0.75f)
+            if (getDistance() < 0.75f)
             {
                 Mita.AiShraplyStop();
             }
@@ -799,7 +819,7 @@ namespace MitaAI
                 try
                 {
                     LightingAndDaytime.CheckDay();
-                    
+
                 }
                 catch (Exception e)
                 {
@@ -824,7 +844,7 @@ namespace MitaAI
                 try
                 {
                     if (!manekenGame) yield break;
-                        
+
                     if (blackScreen != null && playerCamera != null)
                     {
                         blackScreen.BlackScreenAlpha(0.75f);
@@ -881,7 +901,7 @@ namespace MitaAI
 
         private async Task HandleDialogueAsync()
         {
-            
+
             string dataToSent = "waiting";
             string dataToSentSystem = "-";
             string info = "-";
@@ -891,7 +911,7 @@ namespace MitaAI
                 dataToSent = playerMessage;
                 playerMessage = "";
             }
-            else if (systemMessages.Count>0)
+            else if (systemMessages.Count > 0)
             {
                 LoggerInstance.Msg("HAS SYSTEM MESSAGES");
                 await ResetBoringTimerAsync();
@@ -905,12 +925,12 @@ namespace MitaAI
             string response = "";
             try
             {
-                if (systemInfos.Count>0)
+                if (systemInfos.Count > 0)
                 {
-                   LoggerInstance.Msg("HAS SYSTEM INFOS");
+                    LoggerInstance.Msg("HAS SYSTEM INFOS");
                     info = systemInfos.Dequeue();
                 }
-                response = await GetResponseFromPythonSocketAsync(dataToSent,dataToSentSystem,info);
+                response = await GetResponseFromPythonSocketAsync(dataToSent, dataToSentSystem, info);
                 if (response != "")
                 {
                     LoggerInstance.Msg("after GetResponseFromPythonSocketAsync");
@@ -923,7 +943,7 @@ namespace MitaAI
             {
                 //LoggerInstance.Msg($"Error in HandleDialogueAsync: {ex.Message}");
             }
-            
+
         }
 
 
@@ -995,7 +1015,7 @@ namespace MitaAI
                 LoggerInstance.Msg("Error with random loc");
                 return null;
             }
-            
+
         }
 
         // Список для хранения созданных диалогов
@@ -1083,9 +1103,10 @@ namespace MitaAI
                 LoggerInstance.Msg("foreach foreach " + part);
 
 
-                int delay = Mathf.Max(3500 * part.Length / 50,500);
+                int delay = Mathf.Max(3500 * part.Length / 50, 500);
                 yield return MelonCoroutines.Start(ShowDialogue(part, delay));
             }
+
         }
 
 
@@ -1096,14 +1117,14 @@ namespace MitaAI
 
             string modifiedPart = part;
             List<string> commands;
-            EmotionType emotion = EmotionType.none; 
+            EmotionType emotion = EmotionType.none;
             try
             {
-                LoggerInstance.Msg("Begin try:"+ modifiedPart);
+                LoggerInstance.Msg("Begin try:" + modifiedPart);
                 modifiedPart = SetFaceStyle(modifiedPart);
                 modifiedPart = ProcessPlayerEffects(modifiedPart);
                 modifiedPart = setAnimation(modifiedPart);
-                (emotion,modifiedPart) = SetEmotionBasedOnResponse(modifiedPart);
+                (emotion, modifiedPart) = SetEmotionBasedOnResponse(modifiedPart);
                 LoggerInstance.Msg("After SetEmotionBasedOnResponse " + modifiedPart);
 
                 (commands, modifiedPart) = ExtractCommands(modifiedPart);
@@ -1120,7 +1141,7 @@ namespace MitaAI
 
 
             GameObject currentDialog = InstantiateDialog();
-            
+
             Dialogue_3DText answer = currentDialog.GetComponent<Dialogue_3DText>();
 
 
@@ -1128,7 +1149,7 @@ namespace MitaAI
             answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Mita;
             answer.timeShow = delay;
             answer.speaker = Mita?.gameObject;
-            if (emotion  != EmotionType.none) answer.emotionFinish = emotion;
+            if (emotion != EmotionType.none) answer.emotionFinish = emotion;
 
             currentDialog.SetActive(true);
             yield return new WaitForSeconds(delay / 1000f);
@@ -1169,7 +1190,7 @@ namespace MitaAI
 
             try
             {
-              
+
                 int delay = 4000 * text.Length / 50;
 
                 currentDialog = InstantiateDialog(false);
@@ -1185,7 +1206,7 @@ namespace MitaAI
                     answer.textPrint = text;
                     answer.themeDialogue = Dialogue_3DText.Dialogue3DTheme.Player;
                     answer.timeShow = delay;
-                    
+
                     currentDialog.SetActive(true);
 
                     MitaBoringtimer = 0f;
@@ -1194,7 +1215,7 @@ namespace MitaAI
                 {
                     LoggerInstance.Msg("currentDialog is null.");
                 }
-                
+
             }
             catch (Exception ex)
             {
@@ -1211,138 +1232,178 @@ namespace MitaAI
 
         private void ProcessCommands(List<string> commands)
         {
-
             foreach (string command in commands)
             {
                 try
                 {
-                    Transform loc;
-                    switch (command.ToLower())
+                    if (command.Contains(','))
                     {
-                        case "подойти к игроку":
-                            Mita.AiWalkToTarget(playerPerson.transform);
-                            Location34_Communication.indexSwitchAnimation = 1;
-                            break;
-
-                        case "подойти к случайной точке":
-                            loc = GetRandomLoc();
-                            sendSystemInfo($"Ты пошла к {loc.name}");
-                            Mita.AiWalkToTarget( loc );
-                            Location34_Communication.indexSwitchAnimation = 1;
-                            break;
-                        case "телепортироваться к случайной точке":
-                            loc = GetRandomLoc();
-                            sendSystemInfo($"Ты успешно телепортировалась к {loc.name}");
-                            Mita.MitaTeleport(loc);
-                            Location34_Communication.indexSwitchAnimation = 1;
-                            break;
-                        case "телепортироваться к игроку":
-                            Mita.MitaTeleport(playerPerson.transform);
-                            Location34_Communication.indexSwitchAnimation = 1;
-                            break;
-                        case "зарезать игрока":
-                            MelonCoroutines.Start(ActivateAndDisableKiller(AnimationKiller, 3f)); // Время выключения - 3 секунды
-                            break;
-                        case "выключить игрока":
-                            MainMenu.ButtonLoadScene("SceneMenu");
-                            break;
-                        case "заспавнить манекен":
-                            spawnManeken();
-                            break;
-                        case "отключить все манекены":
-                            TurnAllMenekens(false);
-                            break;
-                        case "включить все манекены":
-                            TurnAllMenekens(true);
-                            break;
-                        case "удалить все манекены":
-                            removeAllMenekens();
-                            break;
-                        case "продолжить фразу":
-                            systemMessages.Enqueue("Ты продолжаешь фразу или мысль");
-                            break;
-                        default:
-                            if (command.Contains("PositionMita"))
-                            {
-                                try
-                                {
-                                    GameObject point = GameObject.Find(command);
-                                    Mita.MitaTeleport(point.transform);
-                                    Location34_Communication.indexSwitchAnimation = 1;
-                                }
-                                catch (Exception e)
-                                {
-                                    LoggerInstance.Msg($"Unknown point: {command}");
-                                }
-                            }
-                            else if (command.Contains(","))
-                            {
-                                string[] parts = command.Split(',');
-                                string onlyCommand = "";
-                                float time = 1f;
-                                LoggerInstance.Msg("777");
-                                if (parts.Length == 2 && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out time))
-                                {
-                                    LoggerInstance.Msg("888");
-                                    onlyCommand = parts[0];
-                                    switch (onlyCommand.ToLower())
-                                    {
-                                        case "изменить моргание игрока":
-                                            blinkTimer = Math.Max(2,Math.Min(time, 10));
-                                            break;
-                                        case "изменить время дня":
-                                            LoggerInstance.Msg("999");
-                                            
-                                            LoggerInstance.Msg("000");
-                                            LightingAndDaytime.setTimeDay(time);
-                                            LoggerInstance.Msg($"case Succses command:{onlyCommand} Time: {time}");
-                                            break;
-                                        default:
-                                            break;
-                                    }
-                                    LoggerInstance.Msg($"Succses command:{onlyCommand} Time: {time}");
-                                }
-                                else if (parts.Length == 4)
-                                {
-                                    onlyCommand = parts[0];
-                                    float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float r);
-                                    float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float g);
-                                    float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out float b);
-                                    LoggerInstance.Msg($"Case command:{command} RGB: {r}{g}{b}");
-                                    switch (onlyCommand.ToLower())
-                                    {
-                                        case "изменить освещение":
-                                            LoggerInstance.Msg($"Case command:{onlyCommand} RGB: {r}{g}{b}");
-                                            LoggerInstance.Msg($"Corrected Case command:{onlyCommand} RGB: {r}{g}{b}");
-                                            LightingAndDaytime.applyColor(new Color(r, g, b, 1f));
-                                            break;
-
-                                        default:
-                                            break;
-                                    }
-                                    LoggerInstance.Msg($"Succses command:{onlyCommand} RGB: {r}{g}{b}");
-                                }
-                                else
-                                {
-                                    LoggerInstance.Msg($"Fail command:{command} Time: {time}");
-                                }
-                            }
-
-                            else
-                            {
-                                LoggerInstance.Msg($"Unknown command: {command}");
-                            }
-                                
-                            break;
+                        ProcessComplexCommand(command);
+                    }
+                    else
+                    {
+                        ProcessSimpleCommand(command);
                     }
                 }
                 catch (Exception ex)
                 {
                     LoggerInstance.Msg($"Error processing command '{command}': {ex.Message}");
                 }
-
             }
+        }
 
+        private void ProcessSimpleCommand(string command)
+        {
+            Transform loc;
+            switch (command.ToLower())
+            {
+                case "подойти к игроку":
+                    Mita.AiWalkToTarget(playerPerson.transform);
+                    Location34_Communication.indexSwitchAnimation = 1;
+                    break;
+
+                case "подойти к случайной точке":
+                    loc = GetRandomLoc();
+                    sendSystemInfo($"Ты пошла к {loc.name}");
+                    Mita.AiWalkToTarget(loc);
+                    Location34_Communication.indexSwitchAnimation = 1;
+                    break;
+
+                case "телепортироваться к случайной точке":
+                    loc = GetRandomLoc();
+                    sendSystemInfo($"Ты успешно телепортировалась к {loc.name}");
+                    Mita.MitaTeleport(loc);
+                    Location34_Communication.indexSwitchAnimation = 1;
+                    break;
+
+                case "телепортироваться к игроку":
+                    Mita.MitaTeleport(playerPerson.transform);
+                    Location34_Communication.indexSwitchAnimation = 1;
+                    break;
+
+                case "зарезать игрока":
+                    MelonCoroutines.Start(ActivateAndDisableKiller(AnimationKiller, 3f));
+                    break;
+
+                case "выключить игрока":
+                    MainMenu.ButtonLoadScene("SceneMenu");
+                    break;
+
+                case "заспавнить манекен":
+                    spawnManeken();
+                    break;
+
+                case "отключить все манекены":
+                    TurnAllMenekens(false);
+                    break;
+
+                case "включить все манекены":
+                    TurnAllMenekens(true);
+                    break;
+
+                case "удалить все манекены":
+                    removeAllMenekens();
+                    break;
+
+                case "продолжить фразу":
+                    systemMessages.Enqueue("Ты продолжаешь фразу или мысль");
+                    break;
+
+                default:
+                    if (command.Contains("PositionMita"))
+                    {
+                        try
+                        {
+                            GameObject point = GameObject.Find(command);
+                            Mita.MitaTeleport(point.transform);
+                            Location34_Communication.indexSwitchAnimation = 1;
+                        }
+                        catch (Exception e)
+                        {
+                            LoggerInstance.Msg($"Unknown point: {command}");
+                        }
+                    }
+                    else
+                    {
+                        LoggerInstance.Msg($"Unknown command: {command}");
+                    }
+                    break;
+            }
+        }
+
+        private void ProcessComplexCommand(string command)
+        {
+            string[] parts = command.Split(',');
+
+            if (parts.Length == 2 && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float time))
+            {
+                HandleTwoPartCommand(parts[0].ToLower(), time);
+            }
+            else if (parts.Length == 4 &&
+                     float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float r) &&
+                     float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float g) &&
+                     float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out float b))
+            {
+                HandleFourPartCommand(parts[0].ToLower(), r, g, b);
+            }
+            else
+            {
+                LoggerInstance.Msg($"Invalid command format: {command}");
+            }
+        }
+
+        private void HandleTwoPartCommand(string command, float time)
+        {
+            switch (command)
+            {
+                case "изменить моргание игрока":
+                    blinkTimer = Math.Max(2, Math.Min(time, 10));
+                    break;
+
+                case "изменить время дня":
+                    LightingAndDaytime.setTimeDay(time);
+                    LoggerInstance.Msg($"Time of day changed to {time}");
+                    break;
+                case "изменить размер игрока":
+                    playerObject.transform.localScale = new Vector3(time, time, time);
+                    break;
+                case "изменить свой размер":
+                    MitaObject.transform.localScale = new Vector3(time, time, time);
+                    break;
+                case "изменить скорость игрока":
+                    playerPerson.SetSpeed(time);
+                    break;
+                case "изменить свою скорость":
+                    try
+                    {
+                        MitaObject.transform.Find("MitaPerson").GetComponent<NavMeshAgent>().speed = time;
+                    }
+                    catch (Exception)
+                    {
+
+                    }
+
+                    break;
+
+                default:
+                    LoggerInstance.Msg($"Unknown two-part command: {command}");
+                    break;
+            }
+        }
+
+        private void HandleFourPartCommand(string command, float r, float g, float b)
+        {
+            switch (command)
+            {
+                case "изменить освещение":
+                    LightingAndDaytime.applyColor(new Color(r, g, b, 1f));
+                    LoggerInstance.Msg($"Lighting color changed to RGB({r}, {g}, {b})");
+                    break;
+
+                default:
+                    LoggerInstance.Msg($"Unknown four-part command: {command}");
+                    break;
+            }
         }
 
         public void spawnManeken()
@@ -1351,23 +1412,23 @@ namespace MitaAI
             someManeken.SetActive(true);
             activeMakens.Add(someManeken);
 
-            
-            
-            
+
+
+
 
             if (manekenGame == false)
             {
                 manekenGame = true;
                 MelonCoroutines.Start(CheckManekenGame());
             }
-            someManeken.transform.SetPositionAndRotation( GetRandomLoc().position,GetRandomLoc().rotation );
+            someManeken.transform.SetPositionAndRotation(GetRandomLoc().position, GetRandomLoc().rotation);
 
 
         }
         public void TurnAllMenekens(bool on)
         {
             if (activeMakens.Count <= 0) return;
-            
+
             foreach (GameObject m in activeMakens)
             {
                 if (on) m.transform.FindChild("MitaManeken 1").gameObject.GetComponent<Mob_Maneken>().ResetManeken();
@@ -1395,11 +1456,11 @@ namespace MitaAI
                 killerObject.transform.Find("PositionsKill").GetChild(0).SetPositionAndRotation(playerPerson.transform.position, playerPerson.transform.rotation);
             }
             killerObject.SetActive(true); // Включаем объект
-            
+
             // Сохраняем исходную позицию и ориентацию Миты
             Vector3 originalPosition = Mita.transform.position;
             Quaternion originalRotation = Mita.transform.rotation;
-            Mita.transform.SetPositionAndRotation(new Vector3(0,0,500),Quaternion.identity);
+            Mita.transform.SetPositionAndRotation(new Vector3(0, 0, 500), Quaternion.identity);
             yield return new WaitForSeconds(0.1f);
             killerObject.GetComponent<Location6_MitaKiller>().Kill(); // Вызываем метод Kill()
             yield return new WaitForSeconds(3f);
@@ -1519,9 +1580,9 @@ namespace MitaAI
             }
         }
 
-        private (EmotionType,string) SetEmotionBasedOnResponse(string response)
+        private (EmotionType, string) SetEmotionBasedOnResponse(string response)
         {
-            LoggerInstance.Msg($"Inside SetEmotionBasedOnResponse: "+response);
+            LoggerInstance.Msg($"Inside SetEmotionBasedOnResponse: " + response);
             try
             {
                 var (emotions, cleanedResponse) = ExtractEmotions(response);
@@ -1531,14 +1592,15 @@ namespace MitaAI
                     Enum.TryParse<EmotionType>(emotions[0], true, out var result);
 
                     Mita.FaceEmotionType(result);
-                    if (emotions.Count > 1) { 
+                    if (emotions.Count > 1)
+                    {
                         Enum.TryParse<EmotionType>(emotions[1], true, out var result2);
                         emotion = result2;
                     }
 
                 }
                 LoggerInstance.Msg($"Inside SetEmotionBasedOnResponse end: " + cleanedResponse);
-                return (emotion,cleanedResponse);
+                return (emotion, cleanedResponse);
             }
             catch (Exception ex)
             {
@@ -1570,7 +1632,7 @@ namespace MitaAI
 
             MelonLogger.Msg($"Inside ExtractEmotions end: " + cleanedResponse);
             return (emotions, cleanedResponse);
-            
+
         }
         public string SetFaceStyle(string response)
         {
@@ -1752,7 +1814,7 @@ namespace MitaAI
                         {
                             PlayMitaAnim(MovementStyle);
                         }
-                        
+
                         break;
                 }
             }
@@ -1764,13 +1826,13 @@ namespace MitaAI
             // Возвращаем кортеж: лицо и очищенный текст
             return cleanedResponse;
         }
-        
+
         public IEnumerator FollowPlayer()
         {
-            
-            while ( movementStyle == MovementStyles.follow)
+
+            while (movementStyle == MovementStyles.follow)
             {
-                if (getDistance()>2f)
+                if (getDistance() > 2f)
                 {
                     Mita.AiWalkToTarget(playerPerson.transform);
                 }
@@ -1778,7 +1840,7 @@ namespace MitaAI
                 yield return new WaitForSeconds(2f);
             }
 
-            
+
         }
         private IEnumerator MoveToPositionNoClip(float speed)
         {
@@ -1898,7 +1960,7 @@ namespace MitaAI
                                 LoggerInstance.Warning($"Component {effectComponent?.GetType().Name} is not a MonoBehaviour or Il2CppObjectBase.");
                             }
                         }
-                        
+
                     }
                     catch (Exception ex)
                     {
@@ -2026,13 +2088,13 @@ namespace MitaAI
             return emotions[randomIndex];
         }
 
-        public async Task<string> GetResponseFromPythonSocketAsync(string input, string dataToSentSystem,string systemInfo)
+        public async Task<string> GetResponseFromPythonSocketAsync(string input, string dataToSentSystem, string systemInfo)
         {
             // Ожидаем, чтобы получить доступ к ресурсу (сокету)
-            
 
-            
-            
+
+
+
             using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
             {
                 bool connected = await TryConnectAsync(clientSocket, ServerAddress, Port);
@@ -2057,7 +2119,7 @@ namespace MitaAI
                     }
                     catch (Exception e) { LoggerInstance.Msg("hierarchy error " + e); }
                 }
-    
+
 
 
                 distance = getDistance();
@@ -2094,7 +2156,7 @@ namespace MitaAI
                     return string.Empty; // Возвращаем пустой ответ в случае ошибки при получении данных
                 }
             }
-            
+
         }
         public string formCurrentInfo()
         {
@@ -2104,18 +2166,18 @@ namespace MitaAI
             {
                 info = info + $"Current movement type: {movementStyle.ToString()}\n";
 
-                if (location21_World != null && location21_World.timeDay!= null)
-                //{
-                  //  info += $"Game house time (%): {location21_World.dayNow}\n";
-                   // info += $"Current lighing color: {location21_World.timeDay.colorDay}\n";
-                //}
-                
-                info = info + $"Menekens count: {activeMakens.Count}\n";
+                if (location21_World != null && location21_World.timeDay != null)
+                    //{
+                    //  info += $"Game house time (%): {location21_World.dayNow}\n";
+                    // info += $"Current lighing color: {location21_World.timeDay.colorDay}\n";
+                    //}
+
+                    info = info + $"Menekens count: {activeMakens.Count}\n";
                 if (Mita != null)
                 {
                     //info += $"Your emotion : {Mita.startEmotion.ToString()}\n";
                 }
-                
+
             }
             catch (Exception ex)
             {
@@ -2162,7 +2224,7 @@ namespace MitaAI
 
         public override void OnUpdate()
         {
-           
+
 
             // Обрабатываем нажатие Tab для переключения InputField
             if (Input.GetKeyDown(KeyCode.Tab)) // Используем GetKeyDown для одноразового срабатывания
@@ -2231,7 +2293,7 @@ namespace MitaAI
             {
                 InputFieldComponent.SetActive(!blocked); // Отключаем поле ввода, если оно активно
             }
-            
+
         }
 
         private void CreateInputComponent()
@@ -2258,19 +2320,19 @@ namespace MitaAI
 
 
             var image = InputFieldComponent.AddComponent<UnityEngine.UI.Image>();
-/*            try
-            {
-                var KeyRun = _interface.transform.Find("GameController/Interface/SubtitlesFrame/Text 2").GetComponent<UnityEngine.UI.Image>();
-                LoggerInstance.Msg("KeyRun");
-                image.sprite = KeyRun.sprite;
-            }
-            catch (Exception ex)
-            {*/
-                Sprite blackSprite = CreateBlackSprite(100, 100);
-                image.sprite = blackSprite;
+            /*            try
+                        {
+                            var KeyRun = _interface.transform.Find("GameController/Interface/SubtitlesFrame/Text 2").GetComponent<UnityEngine.UI.Image>();
+                            LoggerInstance.Msg("KeyRun");
+                            image.sprite = KeyRun.sprite;
+                        }
+                        catch (Exception ex)
+                        {*/
+            Sprite blackSprite = CreateBlackSprite(100, 100);
+            image.sprite = blackSprite;
             //}
 
-            image.color = new Color(0f, 0f, 0f,0.7f);
+            image.color = new Color(0f, 0f, 0f, 0.7f);
             ifc.image = image;
 
 
@@ -2340,7 +2402,7 @@ namespace MitaAI
             Texture2D texture = new Texture2D(width, height);
 
             // Задаем все пиксели как черные
-            Color darkColor = new Color(0f, 0f, 0f,0f);  // Черный цвет
+            Color darkColor = new Color(0f, 0f, 0f, 0f);  // Черный цвет
             for (int x = 0; x < width; x++)
             {
                 for (int y = 0; y < height; y++)
@@ -2452,9 +2514,9 @@ namespace MitaAI
 
 
     [HarmonyLib.HarmonyPatch(typeof(Mob_Maneken), "StartKillPlayer")]
-    public static class Patch
+    public static class Maneken
     {
-        
+
         //private static void Prefix()
         //{
         // The code inside this method will run before 'PrivateMethod' is executed
@@ -2474,4 +2536,25 @@ namespace MitaAI
             }
         }
     }
+       [HarmonyLib.HarmonyPatch(typeof(Basement_Safe), "ClickButton",new Type[] { typeof(int)})]
+       public static class Safe
+       {
+
+           //private static void Prefix()
+           //{
+           // The code inside this method will run before 'PrivateMethod' is executed
+           //}
+
+           private static void Postfix()
+           {
+               if (MitaCore.Instance != null)
+               {
+                   MitaCore.Instance.playerClickSage(); // Вызов метода playerKilled из экземпляра MitaCore
+               }
+               else
+               {
+                   MelonLogger.Msg("MitaCore.Instance is null.");
+               }
+           }
+       }
 }
