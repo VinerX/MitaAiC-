@@ -36,6 +36,8 @@ using System.Reflection.Metadata;
 using UnityEngine.XR;
 using UnityEngine.Profiling;
 using UnityEngine.AI;
+using static Il2CppRootMotion.FinalIK.IKSolverVR;
+using static Il2CppSystem.Uri;
 
 [assembly: MelonInfo(typeof(MitaAI.MitaCore), "MitaAI", "1.0.0", "Dmitry", null)]
 [assembly: MelonGame("AIHASTO", "MiSideFull")]
@@ -53,6 +55,7 @@ namespace MitaAI
         // Метод, который будет вызываться после выполнения PrivateMethod
 
         GameObject MitaObject;
+        GameObject MitaPersonObject;
         MitaPerson Mita;
         Animator_FunctionsOverride MitaAnimatorFunctions;
         enum MovementStyles
@@ -64,6 +67,15 @@ namespace MitaAI
 
         }
         MovementStyles movementStyle = 0;
+        enum MitaState
+        {
+            normal = 0,
+            hunt = 1
+
+        }
+        MitaState mitaState = 0;
+
+        GameObject knife;
 
         PlayerPerson playerPerson;
         GameObject playerObject;
@@ -97,6 +109,7 @@ namespace MitaAI
 
         Vector3 lastPosition;
 
+        string waitForSounds = "0";
         string playerMessage = "";
         Queue<string> systemMessages = new Queue<string>();
         Queue<string> systemInfos = new Queue<string>();
@@ -307,7 +320,7 @@ namespace MitaAI
         }
         public void playerKilled()
         {
-            sendSystemMessage("Игрок был укушен манекеном. Манекен выключился (их можно запускать заново)");
+            sendSystemMessage("Игрок был укушен манекеном. Манекен выключился (его можно перезапустить)");
             playerPerson.transform.parent.position = GetRandomLoc().position;
             Component effectComponent = playerEffectsObject.GetComponentByName("Glitch");
             if (effectComponent is Il2CppObjectBase il2cppComponent)
@@ -473,23 +486,20 @@ namespace MitaAI
         private void InitializeGameObjects()
         {
             Mita = GameObject.Find("Mita")?.GetComponent<MitaPerson>();
-            MitaObject = GameObject.Find("Mita");
-            //GameObject.DontDestroyOnLoad(MitaObject);
-            MitaAnimatorFunctions = Mita.gameObject.transform.Find("MitaPerson Mita").gameObject.GetComponent<Animator_FunctionsOverride>();
+            MitaObject = GameObject.Find("Mita").gameObject;
+            MitaPersonObject = MitaObject.transform.Find("MitaPerson Mita").gameObject;
+            MitaObject.transform.SetParent(worldHouse);
+
+            MitaAnimatorFunctions = MitaPersonObject.GetComponent<Animator_FunctionsOverride>();
 
 
             //Mita.gameObject.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled = true;
 
             playerPerson = GameObject.Find("Person")?.GetComponent<PlayerPerson>();
-            playerPerson.transform.parent.GetComponent<PlayerMove>().speedPlayer = 1f;
-            playerPerson.transform.parent.GetComponent<PlayerMove>().canRun = true;
-            try
-            {
-                playerObject = playerPerson.transform.parent.gameObject;
-            }
-            catch (Exception)
-            {
-            }
+            playerObject = playerPerson.transform.parent.gameObject;
+            playerObject.GetComponent<PlayerMove>().speedPlayer = 1f;
+            playerObject.GetComponent<PlayerMove>().canRun = true;
+
 
             playerEffects = playerPerson.transform.parent.Find("HeadPlayer/MainCamera").gameObject.GetComponent<PlayerCameraEffects>();
             playerEffectsObject = playerPerson.transform.parent.Find("HeadPlayer/MainCamera/CameraPersons").gameObject;
@@ -520,15 +530,7 @@ namespace MitaAI
             MelonCoroutines.Start(StartDayTime());
             //MelonCoroutines.Start(UpdateLighitng());
 
-            try
-            {
-                location21_World.UpdateTimeDay();
-            }
-            catch (Exception)
-            {
 
-                LoggerInstance.Msg($"UpdateTimeDay error");
-            }
 
             worldSettings.limitFloor = -200f;
             if (worldHouse == null)
@@ -607,9 +609,30 @@ namespace MitaAI
 
             sendSystemMessage("Игрок только что загрузился в твой уровень.");
 
-
+            //TestBigMita();
         }
+        void TestBigMita()
+        {
+            LoggerInstance.Msg("Start TestBigMita");
+            MitaObject.transform.FindChild("MitaPerson Mita").localScale = new Vector3(15f,15f,15f);
+            
+            Vector3 direction = (MitaObject.transform.position - playerObject.transform.position).normalized;
 
+            MitaObject.transform.SetPositionAndRotation(new Vector3(15f, 0f, 15f), Quaternion.LookRotation(direction));
+
+            try
+            {
+                GameObject floor = GameObject.Instantiate(TryfindChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom/FloorBedroom").gameObject);
+                floor.transform.localScale = new Vector3(30f, 1, 30f);
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Msg("TestBigMita end " + ex);
+            }
+            
+            worldHouse.Find("House").gameObject.SetActive(false);
+            worldBasement.Find("House").gameObject.SetActive(false);
+        }
         private void InitializeGameObjectsWhenReady()
         {
 
@@ -653,6 +676,13 @@ namespace MitaAI
                 LoggerInstance.Msg("AnimationKiller start");
                 string objectPath = "Quests/Quest2 HideAndSeek/Animation Killer";
                 AnimationKiller = FindAndInstantiateObject(worldBasement, objectPath, "222");
+
+                knife = FindAndInstantiateObject(AnimationKiller.transform, "Mita/MitaPerson Mita/Armature/Hips/Spine/Chest/Right shoulder/Right arm/Right elbow/Right wrist/Right item/Knife", "333");
+                knife.transform.SetParent(TryfindChild(MitaPersonObject.transform, "Armature/Hips/Spine/Chest/Right shoulder/Right arm/Right elbow/Right wrist/Right item").transform);
+                knife.transform.localPosition = new Vector3(0,0,0);
+                knife.transform.rotation = Quaternion.identity;
+                knife.SetActive(false);
+
                 //AnimationKiller.GetComponent<Location6_MitaKiller>().mita = Mita.transform;
                 TryTurnChild(worldBasement, "Sounds/Ambient 1", false);
                 AnimationKiller.SetActive(false);
@@ -917,7 +947,7 @@ namespace MitaAI
                 await ResetBoringTimerAsync();
                 dataToSentSystem = systemMessages.Dequeue();
             }
-            else if (MitaBoringtimer >= MitaBoringInterval)
+            else if (MitaBoringtimer >= MitaBoringInterval && mitaState == MitaState.normal)
             {
                 await ResetBoringTimerAsync();
                 dataToSent = "boring";
@@ -1034,7 +1064,7 @@ namespace MitaAI
             float timeout = 6.5f;     // Лимит времени ожидания
 
             // Ждем, пока patch_to_sound_file перестанет быть пустым или не истечет время ожидания
-            while (string.IsNullOrEmpty(patch_to_sound_file) && elapsedTime < timeout)
+            while (string.IsNullOrEmpty(patch_to_sound_file) && elapsedTime < timeout && waitForSounds=="1")
             {
                 if (patches_to_sound_file.Count > 0)
                 {
@@ -1282,7 +1312,7 @@ namespace MitaAI
                     break;
 
                 case "зарезать игрока":
-                    MelonCoroutines.Start(ActivateAndDisableKiller(AnimationKiller, 3f));
+                    MelonCoroutines.Start(ActivateAndDisableKiller(3f));
                     break;
 
                 case "выключить игрока":
@@ -1303,6 +1333,13 @@ namespace MitaAI
 
                 case "удалить все манекены":
                     removeAllMenekens();
+                    break;
+                case "начать охоту с ножом":
+                    beginHunt();
+                    break;
+                case "вернуться к норме":
+                    removeAllMenekens();
+                    endHunt();
                     break;
 
                 case "продолжить фразу":
@@ -1368,15 +1405,15 @@ namespace MitaAI
                     playerObject.transform.localScale = new Vector3(time, time, time);
                     break;
                 case "изменить свой размер":
-                    MitaObject.transform.localScale = new Vector3(time, time, time);
+                    MitaPersonObject.transform.localScale = new Vector3(time, time, time);
                     break;
                 case "изменить скорость игрока":
-                    playerPerson.SetSpeed(time);
+                    playerObject.GetComponent<PlayerMove>().speedPlayer = 1f;
                     break;
                 case "изменить свою скорость":
                     try
                     {
-                        MitaObject.transform.Find("MitaPerson").GetComponent<NavMeshAgent>().speed = time;
+                        MitaPersonObject.GetComponent<NavMeshAgent>().speed = time;
                     }
                     catch (Exception)
                     {
@@ -1405,6 +1442,78 @@ namespace MitaAI
                     break;
             }
         }
+
+        public void beginHunt()
+        {
+            try
+            {
+                LoggerInstance.Error("beginHunt ");
+                mitaState = MitaState.hunt;
+                MelonCoroutines.Start(hunting());
+                Location34_Communication.ActivationCanWalk(false);
+                MitaPersonObject.GetComponent<Animator_FunctionsOverride>().AnimationClipWalk(AssetBundleLoader.LoadAnimationClipByName(bundle, "Mita RunWalkKnife")); //
+                knife.SetActive(true);
+                knife.transform.rotation = Quaternion.identity;
+            }
+            catch (Exception ex)
+            {
+
+                LoggerInstance.Error("beginHunt " + ex);
+            }
+            
+        }
+        IEnumerator hunting()
+        {
+            float startTime = Time.time; // Запоминаем время старта корутины
+            float lastMessageTime = -30f; // Чтобы сообщение появилось сразу через 15 секунд
+
+            while (mitaState == MitaState.hunt)
+            {
+                if (getDistance() > 1f)
+                {
+                    Mita.AiWalkToTarget(playerPerson.transform);
+                }
+                else
+                {
+                    try
+                    {
+                        MelonCoroutines.Start(ActivateAndDisableKiller(3));
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    yield break;
+                }
+
+                // Вычисляем время с начала корутины
+                float elapsedTime = Time.time - startTime;
+
+                // Каждые 15 секунд вызываем функцию (если прошло время)
+                if (elapsedTime - lastMessageTime >= 30f)
+                {
+                    string message = $"Игрок жив уже {elapsedTime.ToString("F2")} секунд. Скажи что-нибудь короткое. ";
+                    if (Mathf.FloorToInt(elapsedTime) % 60 == 0) message += "Может быть, пора усложнять игру... (Менять скорости или спавнить манекенов или применять эффекты)";
+                    sendSystemMessage(message);
+
+                    lastMessageTime = elapsedTime; // Обновляем время последнего вызова
+                }
+
+                yield return new WaitForSeconds(0.5f);
+            }
+
+        }
+
+        public void endHunt()
+        {
+            MitaPersonObject.GetComponent<Animator_FunctionsOverride>().AnimationClipWalk(AssetBundleLoader.LoadAnimationClipByName(bundle, "Mita Walk"));
+            LoggerInstance.Error("End Hunt ");
+            knife.SetActive(false);
+            movementStyle = MovementStyles.walkNear;
+            Location34_Communication.ActivationCanWalk(true);
+            mitaState = MitaState.normal;
+        }
+        
 
         public void spawnManeken()
         {
@@ -1448,24 +1557,27 @@ namespace MitaAI
         }
 
         // Корутин для активации и деактивации объекта
-        private IEnumerator ActivateAndDisableKiller(GameObject killerObject, float delay)
+        private IEnumerator ActivateAndDisableKiller(float delay)
         {
+            
 
-            if (killerObject.transform.Find("PositionsKill").childCount > 0)
+            if (AnimationKiller.transform.Find("PositionsKill").childCount > 0)
             {
-                killerObject.transform.Find("PositionsKill").GetChild(0).SetPositionAndRotation(playerPerson.transform.position, playerPerson.transform.rotation);
+                AnimationKiller.transform.Find("PositionsKill").GetChild(0).SetPositionAndRotation(playerPerson.transform.position, playerPerson.transform.rotation);
             }
-            killerObject.SetActive(true); // Включаем объект
+            AnimationKiller.SetActive(true); // Включаем объект
+
 
             // Сохраняем исходную позицию и ориентацию Миты
             Vector3 originalPosition = Mita.transform.position;
             Quaternion originalRotation = Mita.transform.rotation;
-            Mita.transform.SetPositionAndRotation(new Vector3(0, 0, 500), Quaternion.identity);
+            Mita.transform.SetPositionAndRotation(new Vector3(500, 500, 500), Quaternion.identity);
             yield return new WaitForSeconds(0.1f);
-            killerObject.GetComponent<Location6_MitaKiller>().Kill(); // Вызываем метод Kill()
+            AnimationKiller.GetComponent<Location6_MitaKiller>().Kill(); // Вызываем метод Kill()
+            endHunt();
             yield return new WaitForSeconds(3f);
             systemMessages.Enqueue("Ты успешно зарезала игрока и он где-то зареспавнился");
-            killerObject.SetActive(false); // Включаем объект
+            AnimationKiller.SetActive(false); // Включаем объект
             // Возвращаем Миту в исходное положение
             TryTurnChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Bedroom", true);
             Mita.transform.SetPositionAndRotation(originalPosition, originalRotation);
@@ -1832,7 +1944,7 @@ namespace MitaAI
 
             while (movementStyle == MovementStyles.follow)
             {
-                if (getDistance() > 2f)
+                if (getDistance() > 1f)
                 {
                     Mita.AiWalkToTarget(playerPerson.transform);
                 }
@@ -2111,9 +2223,9 @@ namespace MitaAI
                     try
                     {
                         lastPosition = Mita.transform.GetChild(0).position;
-
-                        if (roomIDMita == 4) hierarchy = ObjectHierarchyHelper.GetObjectsInRadiusAsTree(Mita.gameObject, 10f, worldBasement.Find("House").transform);
-                        else hierarchy = ObjectHierarchyHelper.GetObjectsInRadiusAsTree(Mita.gameObject, 10f, worldHouse.Find("House").transform);
+                        List<string> excludedNames = new List<string> { "Hips", "Maneken" };
+                        if (roomIDMita == 4) hierarchy = ObjectHierarchyHelper.GetObjectsInRadiusAsTree(Mita.gameObject, 10f, worldBasement.Find("House").transform, excludedNames);
+                        else hierarchy = ObjectHierarchyHelper.GetObjectsInRadiusAsTree(Mita.gameObject, 10f, worldHouse.Find("House").transform, excludedNames);
 
                         //LoggerInstance.Msg(hierarchy);
                     }
@@ -2129,7 +2241,7 @@ namespace MitaAI
                 if (string.IsNullOrEmpty(currentInfo)) currentInfo = "-";
                 if (string.IsNullOrEmpty(systemInfo)) systemInfo = "-";
                 if (string.IsNullOrEmpty(hierarchy)) hierarchy = "-";
-                string total_input = $"{input}|||{dataToSentSystem}|||{systemInfo}|||{distance}|||{roomIDPlayer}|||{roomIDMita}|||{hierarchy}|||{currentInfo}";
+                string total_input = $"{input}|||{dataToSentSystem}|||{systemInfo}|||{distance.ToString("F2")}|||{roomIDPlayer}|||{roomIDMita}|||{hierarchy}|||{currentInfo}";
 
                 byte[] messageBytes = Encoding.UTF8.GetBytes(total_input);
                 await clientSocket.SendAsync(messageBytes, SocketFlags.None);
@@ -2145,8 +2257,8 @@ namespace MitaAI
 
                     // Логируем ответ
                     string response = parts[0];
-
-                    patches_to_sound_file.Enqueue(parts[1]);
+                    waitForSounds = parts[1];
+                    patches_to_sound_file.Enqueue(parts[2]);
                     //patch_to_sound_file = parts[1];
                     return response;
                 }
@@ -2164,19 +2276,23 @@ namespace MitaAI
             string info = "-";
             try
             {
-                info = info + $"Current movement type: {movementStyle.ToString()}\n";
+                info += $"Current movement type: {movementStyle.ToString()}\n";
+                if (mitaState == MitaState.hunt) info += $"You are hunting player with knife:\n";
 
-                if (location21_World != null && location21_World.timeDay != null)
-                    //{
-                    //  info += $"Game house time (%): {location21_World.dayNow}\n";
-                    // info += $"Current lighing color: {location21_World.timeDay.colorDay}\n";
-                    //}
+                info += $"Your size: {MitaPersonObject.transform.localScale.x}\n";
+                info += $"Your speed: {MitaPersonObject.GetComponent<NavMeshAgent>().speed}\n";
 
-                    info = info + $"Menekens count: {activeMakens.Count}\n";
-                if (Mita != null)
-                {
-                    //info += $"Your emotion : {Mita.startEmotion.ToString()}\n";
-                }
+                info += $"Player size: {playerObject.transform.localScale.x}\n";
+                info += $"Player speed: {playerObject.GetComponent<PlayerMove>().speedPlayer}\n";
+
+
+                if (false)
+                    {
+                    info += $"Game house time (%): {location21_World.dayNow}\n";
+                    info += $"Current lighing color: {location21_World.timeDay.colorDay}\n";
+                    }
+                
+                if (activeMakens.Count>0) info = info + $"Menekens count: {activeMakens.Count}\n";
 
             }
             catch (Exception ex)
@@ -2187,6 +2303,10 @@ namespace MitaAI
             return info;
         }
 
+        void TryAddInfo(String info, String s)
+        {
+
+        }
         private async Task<bool> TryConnectAsync(Socket socket, string address, int port, int maxRetries = 3, int delayBetweenRetries = 2000)
         {
             int attempt = 0;
