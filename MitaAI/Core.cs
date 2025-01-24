@@ -109,7 +109,7 @@ namespace MitaAI
 
         Vector3 lastPosition;
 
-        string waitForSounds = "0";
+        Queue<string> waitForSounds = new Queue<string>();
         string playerMessage = "";
         Queue<string> systemMessages = new Queue<string>();
         Queue<string> systemInfos = new Queue<string>();
@@ -1064,7 +1064,7 @@ namespace MitaAI
             float timeout = 6.5f;     // Лимит времени ожидания
 
             // Ждем, пока patch_to_sound_file перестанет быть пустым или не истечет время ожидания
-            while (string.IsNullOrEmpty(patch_to_sound_file) && elapsedTime < timeout && waitForSounds=="1")
+            while (string.IsNullOrEmpty(patch_to_sound_file) && elapsedTime < timeout && waitForSounds.Dequeue() == "1")
             {
                 if (patches_to_sound_file.Count > 0)
                 {
@@ -1408,7 +1408,7 @@ namespace MitaAI
                     MitaPersonObject.transform.localScale = new Vector3(time, time, time);
                     break;
                 case "изменить скорость игрока":
-                    playerObject.GetComponent<PlayerMove>().speedPlayer = 1f;
+                    playerObject.GetComponent<PlayerMove>().speedPlayer = time;
                     break;
                 case "изменить свою скорость":
                     try
@@ -2257,7 +2257,7 @@ namespace MitaAI
 
                     // Логируем ответ
                     string response = parts[0];
-                    waitForSounds = parts[1];
+                    waitForSounds.Enqueue(parts[1]);
                     patches_to_sound_file.Enqueue(parts[2]);
                     //patch_to_sound_file = parts[1];
                     return response;
