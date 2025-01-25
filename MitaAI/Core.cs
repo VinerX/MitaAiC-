@@ -941,29 +941,48 @@ namespace MitaAI
             return Vector3.Distance(Mita.transform.GetChild(0).position, playerPerson.transform.position);
         }
 
+        private float lastActionTime = -Mathf.Infinity;  // Для отслеживания времени последнего действия
+        private const float actionCooldown = 5f;  // Интервал в секундах (5 секунд)
         private async Task HandleDialogueAsync()
         {
 
             string dataToSent = "waiting";
             string dataToSentSystem = "-";
             string info = "-";
-            if (playerMessage != "")
+
+            float currentTime = Time.time;
+            if (currentTime - lastActionTime > actionCooldown)
             {
-                await ResetBoringTimerAsync();
-                dataToSent = playerMessage;
-                playerMessage = "";
+                if (playerMessage != "")
+                {
+                    await ResetBoringTimerAsync();
+                    dataToSent = playerMessage;
+                    playerMessage = "";
+                    lastActionTime = Time.time;
+                }
+                else if (systemMessages.Count > 0)
+                {
+                    LoggerInstance.Msg("HAS SYSTEM MESSAGES");
+                    await ResetBoringTimerAsync();
+
+                    //Отправляю залпом.
+                    while (systemMessages.Count() > 0)
+                    {
+                        dataToSentSystem += systemMessages.Dequeue();
+                    }
+                    lastActionTime = Time.time;
+
+                }
+                else if (MitaBoringtimer >= MitaBoringInterval && mitaState == MitaState.normal)
+                {
+                    await ResetBoringTimerAsync();
+                    dataToSent = "boring";
+                    lastActionTime = Time.time;
+                }
             }
-            else if (systemMessages.Count > 0)
-            {
-                LoggerInstance.Msg("HAS SYSTEM MESSAGES");
-                await ResetBoringTimerAsync();
-                dataToSentSystem = systemMessages.Dequeue();
-            }
-            else if (MitaBoringtimer >= MitaBoringInterval && mitaState == MitaState.normal)
-            {
-                await ResetBoringTimerAsync();
-                dataToSent = "boring";
-            }
+
+
+
             string response = "";
             try
             {
@@ -977,13 +996,12 @@ namespace MitaAI
                 {
                     LoggerInstance.Msg("after GetResponseFromPythonSocketAsync");
 
-                    // Теперь используем MelonCoroutines.Start для запуска корутины
                     MelonCoroutines.Start(DisplayResponseAndEmotionCoroutine(response));
                 }
             }
             catch (Exception ex)
             {
-                //LoggerInstance.Msg($"Error in HandleDialogueAsync: {ex.Message}");
+                LoggerInstance.Msg($"Error in HandleDialogueAsync: {ex.Message}");
             }
 
         }
@@ -1076,7 +1094,7 @@ namespace MitaAI
             float timeout = 6.5f;     // Лимит времени ожидания
 
             // Ждем, пока patch_to_sound_file перестанет быть пустым или не истечет время ожидания
-            while (string.IsNullOrEmpty(patch_to_sound_file) && elapsedTime < timeout && waitForSounds=="1")
+            while (string.IsNullOrEmpty(patch_to_sound_file) && elapsedTime < timeout) //&& waitForSounds=="1")
             {
                 if (patches_to_sound_file.Count > 0)
                 {
@@ -1465,7 +1483,7 @@ namespace MitaAI
         {
             try
             {
-                LoggerInstance.Error("beginHunt ");
+                LoggerInstance.Msg("beginHunt ");
                 mitaState = MitaState.hunt;
                 MelonCoroutines.Start(hunting());
                 Location34_Communication.ActivationCanWalk(false);
@@ -2520,7 +2538,7 @@ namespace MitaAI
         {
             LoggerInstance.Msg("Input received: " + inputText);
             PlayerTalk(inputText);
-            playerMessage = inputText;
+            playerMessage += $"{inputText}\n";
 
 
             //PlayMitaAnim("Mita Click");
