@@ -318,6 +318,7 @@
 
 	<ItemGroup>
 		<Compile Include="AssetBundleLoader.cs" />
+		<Compile Include="Interactions.cs" />
 		<Compile Include="Il2CppAssetBundle.cs" />
 		<Compile Include="Il2CppAssetBundleManager.cs" />
 		<Compile Include="Il2CppAssetBundleRequest.cs" />

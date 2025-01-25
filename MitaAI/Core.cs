@@ -109,7 +109,9 @@ namespace MitaAI
 
         Vector3 lastPosition;
 
-        Queue<string> waitForSounds = new Queue<string>();
+        string waitForSounds = "0";
+        //private readonly object waitForSoundsLock = new object();
+
         string playerMessage = "";
         Queue<string> systemMessages = new Queue<string>();
         Queue<string> systemInfos = new Queue<string>();
@@ -587,9 +589,14 @@ namespace MitaAI
             CustomDialogText.indexString = -1;
             CustomDialogText.showSubtitles = true;
 
-
-
-
+            MelonLogger.Msg($"Attempt before");
+            Interactions.Test(TryfindChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Main/LivingTable").gameObject);
+            
+            Interactions.Test(TryfindChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Main/CornerSofa").gameObject);
+            Interactions.Test(TryfindChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Kitchen/Kitchen Table").gameObject);
+            Interactions.Test(TryfindChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Main/SofaChair").gameObject);
+            MelonLogger.Msg($"Attempt after");
+                
             try
             {
                 AddOtherScenes();
@@ -606,8 +613,13 @@ namespace MitaAI
             }
 
             AllLoaded = true;
+            //Interactions.Test(GameObject.Find("Table"));
+
 
             sendSystemMessage("Игрок только что загрузился в твой уровень.");
+
+
+
 
             //TestBigMita();
         }
@@ -1064,7 +1076,7 @@ namespace MitaAI
             float timeout = 6.5f;     // Лимит времени ожидания
 
             // Ждем, пока patch_to_sound_file перестанет быть пустым или не истечет время ожидания
-            while (string.IsNullOrEmpty(patch_to_sound_file) && elapsedTime < timeout && waitForSounds.Dequeue() == "1")
+            while (string.IsNullOrEmpty(patch_to_sound_file) && elapsedTime < timeout && waitForSounds=="1")
             {
                 if (patches_to_sound_file.Count > 0)
                 {
@@ -1085,7 +1097,13 @@ namespace MitaAI
             // После того как patch_to_sound_file стал не пустым, вызываем метод DisplayResponseAndEmotion
             DisplayResponseAndEmotion(response);
         }
-
+        public static string PopLast(List<string> list)
+        {
+            if (list.Count == 0) throw new InvalidOperationException("List is empty");
+            string last = list[^1]; // Или list[list.Count - 1]
+            list.RemoveAt(list.Count - 1);
+            return last;
+        }
         private void DisplayResponseAndEmotion(string response)
         {
             LoggerInstance.Msg("DisplayResponseAndEmotion");
@@ -2257,7 +2275,9 @@ namespace MitaAI
 
                     // Логируем ответ
                     string response = parts[0];
-                    waitForSounds.Enqueue(parts[1]);
+
+                    string waitForSounds = parts[1];
+
                     patches_to_sound_file.Enqueue(parts[2]);
                     //patch_to_sound_file = parts[1];
                     return response;
