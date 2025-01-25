@@ -590,12 +590,12 @@ namespace MitaAI
             CustomDialogText.showSubtitles = true;
 
             MelonLogger.Msg($"Attempt before");
-            Interactions.Test(TryfindChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Main/LivingTable").gameObject);
+            //Interactions.Test(TryfindChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Main/LivingTable").gameObject);
             
-            Interactions.Test(TryfindChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Main/CornerSofa").gameObject);
-            Interactions.Test(TryfindChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Kitchen/Kitchen Table").gameObject);
-            Interactions.Test(TryfindChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Main/SofaChair").gameObject);
-            MelonLogger.Msg($"Attempt after");
+            //Interactions.Test(TryfindChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Main/CornerSofa").gameObject);
+            //Interactions.Test(TryfindChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Kitchen/Kitchen Table").gameObject);
+            //Interactions.Test(TryfindChild(worldHouse, "House/HouseGameNormal Tamagotchi/HouseGame Tamagotchi/House/Main/SofaChair").gameObject);
+            //MelonLogger.Msg($"Attempt after");
                 
             try
             {

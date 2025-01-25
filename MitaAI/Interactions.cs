@@ -14,11 +14,11 @@ namespace MitaAI
 {
     public static class Interactions
     {
-        public static void CreateObjectInteractable(UnityEngine.GameObject gameObject, System.Action unityAction)
+        public static void CreateObjectInteractable(UnityEngine.GameObject gameObject, Il2CppSystem.Action unityAction)
         {
             if (gameObject == null)
             {
-                MelonLoader.MelonLogger.Msg($"ERROR FIND: GameObject is null", UnityEngine.Vector2.zero);
+                MelonLogger.Msg($"ERROR FIND: GameObject is null");
                 return;
             }
 
@@ -37,7 +37,7 @@ namespace MitaAI
                 boxCollider.center = bounds.center;
                 boxCollider.size = bounds.size;
 
-                MelonLoader.MelonLogger.Msg($"SIZE: {boxCollider.size} and center: {boxCollider.center}");
+                MelonLogger.Msg($"SIZE: {boxCollider.size} and center: {boxCollider.center}");
             }
 
             // Делаем объект неактивным перед добавлением компонентов
@@ -57,21 +57,27 @@ namespace MitaAI
 
         public static void Test(UnityEngine.GameObject gameObject)
         {
-            MelonLogger.Msg($"Attempt interactive");
+            MelonLogger.Msg($"Attempting interaction setup...");
             try
             {
-                // Создаём обработчик в виде явного метода
-                System.Action action = new System.Action(() => OnGameObjectClicked(gameObject));
+                // Создаем обработчик и преобразуем в Il2CppSystem.Action
+                System.Action action = () => OnGameObjectClicked(gameObject);
+                Il2CppSystem.Action il2cppAction = CreateIl2CppAction(action);
 
                 // Передаём в метод CreateObjectInteractable
-                CreateObjectInteractable(gameObject, action);
+                CreateObjectInteractable(gameObject, il2cppAction);
             }
             catch (System.Exception e)
             {
-
-                MelonLogger.Error($"Error Attempt interactive" + e);
+                MelonLogger.Error($"Error during interaction setup: {e}");
             }
-            MelonLogger.Msg($"End Attempt interactive");
+            MelonLogger.Msg($"Interaction setup completed.");
+        }
+
+
+        private static Il2CppSystem.Action CreateIl2CppAction(System.Action action)
+        {
+            return (Il2CppSystem.Action)action;
         }
 
         // Метод для обработки события
